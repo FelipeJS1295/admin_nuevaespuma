@@ -5,7 +5,7 @@ import type { Bodega } from '../types/bodega';
 import type { Producto } from '../types/producto';
 import type { MovimientoStock } from '../types/movimiento';
 import Modal from '../components/Modal';
-import { Plus, PackagePlus } from 'lucide-react';
+import { PackagePlus } from 'lucide-react';
 
 const etiquetasMovimiento: Record<string, string> = {
   PRODUCCION: 'Producción',

@@ -12,9 +12,13 @@ async function bootstrap() {
     }),
   );
 
-  app.enableCors({
-    origin: 'http://localhost:5173',
-  });
+  // Orígenes permitidos, separados por coma. En desarrollo: el frontend de Vite.
+  const origenes = (process.env.CORS_ORIGINS ?? 'http://localhost:5173')
+    .split(',')
+    .map((o) => o.trim());
+
+  app.enableCors({ origin: origenes });
+
   await app.listen(process.env.PORT ?? 3333);
 }
 bootstrap();
