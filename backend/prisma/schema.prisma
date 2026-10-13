@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Bodega {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  ubicacion String?
+  activa    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+
+  stocks      Stock[]
+  movimientos MovimientoStock[]
+  ventas      Venta[]
+}
+
+model Producto {
+  id        Int      @id @default(autoincrement())
+  sku       String   @unique
+  nombre    String
+  densidad  Float
+  precio    Float    // precio por cm de espesor
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+
+  stocks      Stock[]
+  movimientos MovimientoStock[]
+  ventaItems  VentaItem[]
+}
+
+enum TipoMovimiento {
+  PRODUCCION
+  VENTA
+  TRANSFERENCIA_SALIDA
+  TRANSFERENCIA_ENTRADA
+  AJUSTE
+}
+
+model Stock {
+  id         Int      @id @default(autoincrement())
+  bodegaId   Int
+  productoId Int
+  cantidad   Float    @default(0)
+
+  bodega     Bodega   @relation(fields: [bodegaId], references: [id])
+  producto   Producto @relation(fields: [productoId], references: [id])
+
+  @@unique([bodegaId, productoId])
+}
+
+model MovimientoStock {
+  id           Int             @id @default(autoincrement())
+  bodegaId     Int
+  productoId   Int
+  tipo         TipoMovimiento
+  cantidad     Float
+  observacion  String?
+  creadoEn     DateTime        @default(now())
+
+  bodega       Bodega          @relation(fields: [bodegaId], references: [id])
+  producto     Producto        @relation(fields: [productoId], references: [id])
+}
+
+model Cliente {
+  id            Int      @id @default(autoincrement())
+  rut           String
+  nombre        String
+  limiteCredito Float    @default(0)
+  creditoUsado  Float    @default(0)
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+
+  ventas        Venta[]
+  abonos        Abono[]
+}
+
+enum Rol {
+  ADMIN_MASTER
+  ADMIN
+  VENTAS
+  PRODUCCION
+  DESPACHO
+}
+
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  nombre    String
+  rol       Rol
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+
+  ventas    Venta[]
+}
+
+enum MedioPago {
+  EFECTIVO
+  DEBITO
+  TRANSFERENCIA
+  CREDITO_CLIENTE
+}
+
+model Venta {
+  id             Int       @id @default(autoincrement())
+  bodegaId       Int
+  clienteId      Int?
+  usuarioId      Int?
+  subtotal       Float     // suma neta de los items (sin IVA)
+  iva            Float     @default(0) // suma del IVA de todos los pagos que llevan IVA
+  total          Float     // subtotal + iva = lo realmente cobrado hasta ahora
+  saldoPendiente Float     @default(0) // monto neto aún no pagado
+  creadoEn       DateTime  @default(now())
+
+  bodega     Bodega      @relation(fields: [bodegaId], references: [id])
+  cliente    Cliente?    @relation(fields: [clienteId], references: [id])
+  usuario    Usuario?    @relation(fields: [usuarioId], references: [id])
+  items      VentaItem[]
+  pagos      Pago[]
+}
+
+model VentaItem {
+  id             Int      @id @default(autoincrement())
+  ventaId        Int
+  productoId     Int
+  espesorCm      Float
+  precioUnitario Float
+  subtotal       Float
+
+  venta          Venta    @relation(fields: [ventaId], references: [id])
+  producto       Producto @relation(fields: [productoId], references: [id])
+}
+
+model Pago {
+  id        Int       @id @default(autoincrement())
+  ventaId   Int
+  medioPago MedioPago
+  monto     Float      // monto neto asignado a este pago
+  conIva    Boolean    @default(false)
+  iva       Float      @default(0) // calculado: conIva ? monto * 0.19 : 0
+  total     Float      // monto + iva = lo realmente cobrado en este pago
+
+  venta     Venta     @relation(fields: [ventaId], references: [id])
+}
+
+model Abono {
+  id          Int       @id @default(autoincrement())
+  clienteId   Int
+  monto       Float
+  medioPago   MedioPago
+  observacion String?
+  creadoEn    DateTime  @default(now())
+
+  cliente     Cliente   @relation(fields: [clienteId], references: [id])
+}

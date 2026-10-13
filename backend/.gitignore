@@ -1,0 +1,27 @@
+# Dependencias
+node_modules/
+
+# Secretos y configuración local
+.env
+.env.*
+!.env.example
+
+# Archivos compilados
+dist/
+build/
+*.tsbuildinfo
+
+# Carpetas de herramientas de IA
+.agents/
+.claude/
+.cursor/
+.devin/
+
+# Sistema y editor
+.DS_Store
+Thumbs.db
+.vscode/
+*.log
+
+# Respaldos de la base de datos (contienen datos reales)
+respaldos/

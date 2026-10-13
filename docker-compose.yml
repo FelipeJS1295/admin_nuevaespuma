@@ -1,0 +1,16 @@
+services:
+  database:
+    image: postgres:16
+    container_name: fabrica_db
+    restart: always
+    environment:
+      POSTGRES_USER: fabrica_user
+      POSTGRES_PASSWORD: fabrica_pass
+      POSTGRES_DB: fabrica_espuma
+    ports:
+      - "5544:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
