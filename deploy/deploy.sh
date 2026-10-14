@@ -152,6 +152,7 @@ EOF
 }
 
 respaldar() {
+  local archivo
   mkdir -p "$RESPALDOS"
   chmod 700 "$RESPALDOS"
   archivo="$RESPALDOS/respaldo-$(date +%Y-%m-%d_%H%M%S).dump"
@@ -170,6 +171,7 @@ respaldar() {
 }
 
 restaurar() {
+  local archivo respuesta
   archivo="${1:-}"
   if [ -z "$archivo" ] || [ ! -f "$archivo" ]; then
     fallar "Indica el archivo: bash deploy/deploy.sh restore /ruta/respaldo.dump"
