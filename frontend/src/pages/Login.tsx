@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Factory } from 'lucide-react';
+import { Factory, Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [verPassword, setVerPassword] = useState(false);
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
   const { login } = useAuth();
@@ -45,12 +46,23 @@ export default function Login() {
           />
 
           <label className="block text-sm text-ink/60 mb-1">Contraseña</label>
-          <input
-            type="password"
-            className="border border-ink/15 rounded px-3 py-2 w-full mb-4"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <div className="relative mb-4">
+            <input
+              type={verPassword ? 'text' : 'password'}
+              className="border border-ink/15 rounded pl-3 pr-10 py-2 w-full"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => setVerPassword(!verPassword)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink/40 hover:text-ink"
+              aria-label={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              title={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            >
+              {verPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
 
           {error && <p className="text-danger text-sm mb-4">{error}</p>}
 
