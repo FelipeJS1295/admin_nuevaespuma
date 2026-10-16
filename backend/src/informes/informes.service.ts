@@ -316,4 +316,83 @@ export class InformesService {
       porBodega,
     };
   }
+
+  async ingresos(desde?: string, hasta?: string) {
+    // Si no se indica rango, usa desde el 1 del mes actual hasta hoy
+    const ahora = new Date();
+    const desdeFinal = desde || formatoFecha(new Date(ahora.getFullYear(), ahora.getMonth(), 1));
+    const hastaFinal = hasta || formatoFecha(ahora);
+    const rango = {
+      gte: new Date(`${desdeFinal}T00:00:00`),
+      lte: new Date(`${hastaFinal}T23:59:59.999`),
+    };
+
+    const [pagos, abonos, ventasDelPeriodo] = await Promise.all([
+      this.prisma.pago.findMany({ where: { creadoEn: rango } }),
+      this.prisma.abono.findMany({ where: { creadoEn: rango } }),
+      this.prisma.venta.findMany({ where: { creadoEn: rango }, select: { saldoPendiente: true } }),
+    ]);
+
+    // Plata que realmente entró: efectivo, débito y transferencia
+    const medios = ['EFECTIVO', 'DEBITO', 'TRANSFERENCIA'] as const;
+
+    const porMedio = medios.map((medio) => {
+      const pagosDelMedio = pagos.filter((p) => p.medioPago === medio);
+      const abonosDelMedio = abonos.filter((a) => a.medioPago === medio);
+      const neto = pagosDelMedio.reduce((acc, p) => acc + p.monto, 0);
+      const iva = pagosDelMedio.reduce((acc, p) => acc + p.iva, 0);
+      const ventasTotal = pagosDelMedio.reduce((acc, p) => acc + p.total, 0);
+      const abonosTotal = abonosDelMedio.reduce((acc, a) => acc + a.monto, 0);
+      return {
+        medio,
+        cantidad: pagosDelMedio.length + abonosDelMedio.length,
+        neto,
+        iva,
+        ventasTotal,
+        abonosTotal,
+        total: ventasTotal + abonosTotal,
+      };
+    });
+
+    const resumen = {
+      totalIngresado: porMedio.reduce((acc, m) => acc + m.total, 0),
+      porVentas: porMedio.reduce((acc, m) => acc + m.ventasTotal, 0),
+      porAbonos: porMedio.reduce((acc, m) => acc + m.abonosTotal, 0),
+      iva: porMedio.reduce((acc, m) => acc + m.iva, 0),
+    };
+
+    // Crédito del cliente: no es plata que entró, es plata que quedó por cobrar
+    const credito = {
+      ventasACredito: pagos
+        .filter((p) => p.medioPago === 'CREDITO_CLIENTE')
+        .reduce((acc, p) => acc + p.total, 0),
+      saldoPendienteVentas: ventasDelPeriodo.reduce((acc, v) => acc + v.saldoPendiente, 0),
+    };
+
+    // Por día, para cuadrar caja
+    const porDiaMap = new Map<
+      string,
+      { fecha: string; EFECTIVO: number; DEBITO: number; TRANSFERENCIA: number; total: number }
+    >();
+    const sumarAlDia = (fecha: Date, medio: string, monto: number) => {
+      if (!(medios as readonly string[]).includes(medio)) return;
+      const clave = formatoFecha(fecha);
+      const actual = porDiaMap.get(clave) ?? { fecha: clave, EFECTIVO: 0, DEBITO: 0, TRANSFERENCIA: 0, total: 0 };
+      actual[medio as 'EFECTIVO' | 'DEBITO' | 'TRANSFERENCIA'] += monto;
+      actual.total += monto;
+      porDiaMap.set(clave, actual);
+    };
+    for (const p of pagos) sumarAlDia(p.creadoEn, p.medioPago, p.total);
+    for (const a of abonos) sumarAlDia(a.creadoEn, a.medioPago, a.monto);
+    const porDia = Array.from(porDiaMap.values()).sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+    return {
+      desde: desdeFinal,
+      hasta: hastaFinal,
+      resumen,
+      porMedio,
+      credito,
+      porDia,
+    };
+  }
 }

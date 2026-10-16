@@ -30,4 +30,9 @@ export class InformesController {
   produccion(@Query('desde') desde?: string, @Query('hasta') hasta?: string) {
     return this.informesService.produccion(desde, hasta);
   }
+
+  @Get('ingresos')
+  ingresos(@Query('desde') desde?: string, @Query('hasta') hasta?: string) {
+    return this.informesService.ingresos(desde, hasta);
+  }
 }
