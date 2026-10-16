@@ -5,6 +5,7 @@ export interface Cliente {
   limiteCredito: number;
   creditoUsado: number;
   activo: boolean;
+  conFactura: boolean;
   creadoEn: string;
 }
 

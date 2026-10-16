@@ -22,12 +22,14 @@ export default function Clientes() {
   const [rut, setRut] = useState('');
   const [nombre, setNombre] = useState('');
   const [limiteCredito, setLimiteCredito] = useState('');
+  const [conFactura, setConFactura] = useState(false);
   const [error, setError] = useState('');
 
   // Modal de edición
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [nombreEdit, setNombreEdit] = useState('');
   const [limiteCreditoEdit, setLimiteCreditoEdit] = useState('');
+  const [conFacturaEdit, setConFacturaEdit] = useState(false);
   const [errorEdit, setErrorEdit] = useState('');
 
   const cargarClientes = async () => {
@@ -56,7 +58,8 @@ export default function Clientes() {
     });
   }, [clientes, busqueda, filtroEstado, soloAlLimite]);
 
-  const cerrarModalCrear = () => {
+    const cerrarModalCrear = () => {
+    setConFactura(false);
     setModalCrearAbierto(false);
     setRut('');
     setNombre('');
@@ -76,6 +79,7 @@ export default function Clientes() {
         rut,
         nombre,
         limiteCredito: limiteCredito ? Number(limiteCredito) : 0,
+        conFactura,
       });
       cerrarModalCrear();
       cargarClientes();
@@ -88,6 +92,7 @@ export default function Clientes() {
     setClienteEditando(cliente);
     setNombreEdit(cliente.nombre);
     setLimiteCreditoEdit(String(cliente.limiteCredito));
+    setConFacturaEdit(cliente.conFactura);
     setErrorEdit('');
   };
 
@@ -99,6 +104,7 @@ export default function Clientes() {
       await api.patch(`/clientes/${clienteEditando.id}`, {
         nombre: nombreEdit,
         limiteCredito: Number(limiteCreditoEdit),
+        conFactura: conFacturaEdit,
       });
       setClienteEditando(null);
       cargarClientes();
@@ -197,7 +203,12 @@ export default function Clientes() {
               return (
                 <tr key={c.id} className="border-b border-ink/5 last:border-0">
                   <td className="py-2.5 px-4 font-mono text-sm">{c.rut}</td>
-                  <td className="py-2.5 px-4">{c.nombre}</td>
+                    <td className="py-2.5 px-4">
+                    {c.nombre}
+                    {c.conFactura && (
+                      <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-amber/15 text-amber-dark">Factura</span>
+                    )}
+                  </td>
                   <td className="py-2.5 px-4 font-mono text-sm">${c.limiteCredito.toLocaleString('es-CL')}</td>
                   <td className="py-2.5 px-4 font-mono text-sm">${c.creditoUsado.toLocaleString('es-CL')}</td>
                   <td className={`py-2.5 px-4 font-mono text-sm font-medium ${disponible <= 0 ? 'text-danger' : 'text-teal'}`}>
@@ -275,6 +286,18 @@ export default function Clientes() {
             value={limiteCredito}
             onChange={(e) => setLimiteCredito(e.target.value)}
           />
+                    <label className="flex items-start gap-2 text-sm text-ink/70 mb-4 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={conFactura}
+              onChange={(e) => setConFactura(e.target.checked)}
+            />
+            <span>
+              Cliente con factura
+              <span className="block text-xs text-ink/40">Todas sus ventas llevarán IVA</span>
+            </span>
+          </label>
           {error && <p className="text-danger text-sm mb-3">{error}</p>}
           <div className="flex gap-2 justify-end">
             <button type="button" onClick={cerrarModalCrear} className="px-4 py-2 rounded text-ink/60 hover:bg-ink/5">
@@ -308,6 +331,18 @@ export default function Clientes() {
               Crédito ya usado: ${clienteEditando.creditoUsado.toLocaleString('es-CL')} (no editable aquí)
             </p>
           )}
+                   <label className="flex items-start gap-2 text-sm text-ink/70 mb-4 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={conFacturaEdit}
+              onChange={(e) => setConFacturaEdit(e.target.checked)}
+            />
+            <span>
+              Cliente con factura
+              <span className="block text-xs text-ink/40">Afecta solo a las ventas nuevas</span>
+            </span>
+          </label>
           {errorEdit && <p className="text-danger text-sm mb-3">{errorEdit}</p>}
           <div className="flex gap-2 justify-end">
             <button type="button" onClick={() => setClienteEditando(null)} className="px-4 py-2 rounded text-ink/60 hover:bg-ink/5">

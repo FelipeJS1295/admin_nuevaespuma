@@ -14,5 +14,9 @@ export class CreateClienteDto {
 
   @IsOptional()
   @IsBoolean()
+  conFactura?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   activo?: boolean;
 }

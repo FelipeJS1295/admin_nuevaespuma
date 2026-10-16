@@ -55,12 +55,16 @@ export class VentasService {
 
     // Calcular el IVA de cada pago (19%) y armar los pagos finales
     const TASA_IVA = 0.19;
+    // Si el cliente es "con factura", todos sus pagos llevan IVA, sin importar lo que llegue
+    const aplicaIva = (p: { conIva?: boolean }) => (cliente?.conFactura ? true : !!p.conIva);
+
     const pagosCalculados = pagos.map((p) => {
-      const iva = p.conIva ? Math.round(p.monto * TASA_IVA) : 0;
+      const conIva = aplicaIva(p);
+      const iva = conIva ? Math.round(p.monto * TASA_IVA) : 0;
       return {
         medioPago: p.medioPago,
         monto: p.monto,
-        conIva: !!p.conIva,
+        conIva,
         iva,
         total: p.monto + iva,
       };
@@ -213,7 +217,7 @@ export class VentasService {
   }
 
   async registrarPagoPendiente(ventaId: number, monto: number, medioPago: MedioPago, conIva: boolean) {
-    const venta = await this.prisma.venta.findUnique({ where: { id: ventaId } });
+    const venta = await this.prisma.venta.findUnique({ where: { id: ventaId }, include: { cliente: true } });
     if (!venta) throw new NotFoundException(`Venta con id ${ventaId} no encontrada`);
 
     if (monto > venta.saldoPendiente + 0.01) {
@@ -223,12 +227,14 @@ export class VentasService {
     }
 
     const TASA_IVA = 0.19;
-    const iva = conIva ? Math.round(monto * TASA_IVA) : 0;
+    // Si el cliente de la venta es "con factura", el pago siempre lleva IVA
+    const aplicaIva = venta.cliente?.conFactura ? true : conIva;
+    const iva = aplicaIva ? Math.round(monto * TASA_IVA) : 0;
     const total = monto + iva;
 
     return this.prisma.$transaction(async (tx) => {
       const pago = await tx.pago.create({
-        data: { ventaId, medioPago, monto, conIva, iva, total },
+        data: { ventaId, medioPago, monto, conIva: aplicaIva, iva, total },
       });
 
       await tx.venta.update({

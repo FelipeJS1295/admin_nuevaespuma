@@ -35,7 +35,7 @@ export interface Venta {
   numeroDocumento: string | null;
   creadoEn: string;
   bodega: { id: number; nombre: string };
-  cliente: { id: number; nombre: string; rut: string } | null;
+  cliente: { id: number; nombre: string; rut: string; conFactura: boolean } | null;
   items: VentaItem[];
   pagos: Pago[];
 }

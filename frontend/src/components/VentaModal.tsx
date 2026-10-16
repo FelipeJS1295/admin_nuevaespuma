@@ -89,9 +89,16 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
     [pagos],
   );
 
+  // Si el cliente es "con factura", todos los pagos llevan IVA
+  const clienteConFactura = clientes.find((c) => c.id === Number(clienteId))?.conFactura ?? false;
+
   const ivaTotal = useMemo(
-    () => pagos.reduce((acc, p) => acc + (p.conIva ? Math.round((Number(p.monto) || 0) * TASA_IVA) : 0), 0),
-    [pagos],
+    () =>
+      pagos.reduce(
+        (acc, p) => acc + (clienteConFactura || p.conIva ? Math.round((Number(p.monto) || 0) * TASA_IVA) : 0),
+        0,
+      ),
+    [pagos, clienteConFactura],
   );
 
   const totalConIva = subtotal + ivaTotal;
@@ -191,7 +198,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
         items: carrito.map((i) => ({ productoId: i.productoId, espesorCm: i.espesorCm })),
         pagos: pagos
           .filter((p) => Number(p.monto) > 0)
-          .map((p) => ({ medioPago: p.medioPago, monto: Number(p.monto), conIva: p.conIva })),
+          .map((p) => ({ medioPago: p.medioPago, monto: Number(p.monto), conIva: clienteConFactura || p.conIva })),
       });
       onVentaCreada(res.data.superaLimite ? clienteSeleccionado?.nombre : undefined);
       limpiarYcerrar();
@@ -352,6 +359,9 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
             </div>
 
             <h3 className="text-sm font-medium text-ink/70 mb-2">Pagos</h3>
+            {clienteConFactura && (
+              <p className="text-xs text-amber-dark mb-2">Cliente con factura: todos los pagos llevan IVA.</p>
+            )}
             <div className="space-y-2 mb-2">
               {pagos.map((p, idx) => (
                 <div key={idx} className="border border-ink/10 rounded p-2">
@@ -382,12 +392,13 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                     <label className="flex items-center gap-1.5 text-xs text-ink/60 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={p.conIva}
+                        checked={clienteConFactura || p.conIva}
+                        disabled={clienteConFactura}
                         onChange={(e) => actualizarPagoIva(idx, e.target.checked)}
                       />
-                      Incluye IVA (19%)
+                      {clienteConFactura ? 'Incluye IVA (cliente con factura)' : 'Incluye IVA (19%)'}
                     </label>
-                    {p.conIva && Number(p.monto) > 0 && (
+                      {(clienteConFactura || p.conIva) && Number(p.monto) > 0 && (
                       <span className="text-xs text-ink/50 font-mono">
                         = ${(Number(p.monto) + Math.round(Number(p.monto) * TASA_IVA)).toLocaleString('es-CL')}
                       </span>

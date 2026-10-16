@@ -73,6 +73,7 @@ model Cliente {
   limiteCredito Float    @default(0)
   creditoUsado  Float    @default(0)
   activo        Boolean  @default(true)
+  conFactura    Boolean  @default(false)
   creadoEn      DateTime @default(now())
 
   ventas        Venta[]

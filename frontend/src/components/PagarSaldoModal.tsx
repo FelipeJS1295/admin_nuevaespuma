@@ -13,12 +13,14 @@ export default function PagarSaldoModal({ venta, onCerrar, onPagado }: Props) {
   const [monto, setMonto] = useState(String(venta.saldoPendiente));
   const [medioPago, setMedioPago] = useState('EFECTIVO');
   const [conIva, setConIva] = useState(false);
+  const clienteConFactura = venta.cliente?.conFactura ?? false;
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
 
   const TASA_IVA = 0.19;
   const montoNum = Number(monto) || 0;
-  const ivaCalculado = conIva ? Math.round(montoNum * TASA_IVA) : 0;
+  const aplicaIva = clienteConFactura || conIva;
+  const ivaCalculado = aplicaIva ? Math.round(montoNum * TASA_IVA) : 0;
   const totalACobrar = montoNum + ivaCalculado;
 
   const registrarPago = async (e: React.FormEvent) => {
@@ -34,7 +36,7 @@ export default function PagarSaldoModal({ venta, onCerrar, onPagado }: Props) {
     }
     setGuardando(true);
     try {
-      await api.post(`/ventas/${venta.id}/pagos`, { monto: montoNum, medioPago, conIva });
+      await api.post(`/ventas/${venta.id}/pagos`, { monto: montoNum, medioPago, conIva: aplicaIva });
       onPagado();
       onCerrar();
     } catch (err: any) {
@@ -72,11 +74,16 @@ export default function PagarSaldoModal({ venta, onCerrar, onPagado }: Props) {
         </select>
 
         <label className="flex items-center gap-2 text-sm text-ink/70 mb-4 cursor-pointer">
-          <input type="checkbox" checked={conIva} onChange={(e) => setConIva(e.target.checked)} />
-          Incluye IVA (19%)
+          <input
+            type="checkbox"
+            checked={aplicaIva}
+            disabled={clienteConFactura}
+            onChange={(e) => setConIva(e.target.checked)}
+          />
+         {clienteConFactura ? 'Incluye IVA (cliente con factura)' : 'Incluye IVA (19%)'}
         </label>
 
-        {conIva && montoNum > 0 && (
+        {aplicaIva && montoNum > 0 && (
           <p className="text-sm text-ink/50 mb-4 -mt-2">
             Total a cobrar: <span className="font-mono font-medium text-ink">${totalACobrar.toLocaleString('es-CL')}</span>
           </p>
