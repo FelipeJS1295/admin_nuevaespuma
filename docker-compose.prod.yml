@@ -29,6 +29,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS}
       PORT: 3333
+      TZ: America/Santiago
     networks:
       - interna
 

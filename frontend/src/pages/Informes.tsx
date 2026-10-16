@@ -4,11 +4,13 @@ import InformeVentasTab from '../components/informes/InformeVentasTab';
 import InformeCuentasPorCobrarTab from '../components/informes/InformeCuentasPorCobrarTab';
 import InformeInventarioTab from '../components/informes/InformeInventarioTab';
 import InformeProduccionTab from '../components/informes/InformeProduccionTab';
+import InformeIngresosTab from '../components/informes/InformeIngresosTab';
 
-type Pestana = 'ventas' | 'cuentas' | 'inventario' | 'produccion';
+type Pestana = 'ventas' | 'ingresos' | 'cuentas' | 'inventario' | 'produccion';
 
 const pestanas: { id: Pestana; etiqueta: string }[] = [
   { id: 'ventas', etiqueta: 'Ventas' },
+  { id: 'ingresos', etiqueta: 'Ingresos' },
   { id: 'cuentas', etiqueta: 'Cuentas por cobrar' },
   { id: 'inventario', etiqueta: 'Inventario' },
   { id: 'produccion', etiqueta: 'Producción' },
@@ -43,6 +45,9 @@ export default function Informes() {
 
       {pestana === 'ventas' && (
         <InformeVentasTab desde={desde} hasta={hasta} onCambioFechas={cambiarFechas} />
+      )}
+            {pestana === 'ingresos' && (
+        <InformeIngresosTab desde={desde} hasta={hasta} onCambioFechas={cambiarFechas} />
       )}
       {pestana === 'cuentas' && <InformeCuentasPorCobrarTab />}
       {pestana === 'inventario' && (

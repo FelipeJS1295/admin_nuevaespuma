@@ -146,6 +146,7 @@ model Pago {
   conIva    Boolean    @default(false)
   iva       Float      @default(0) // calculado: conIva ? monto * 0.19 : 0
   total     Float      // monto + iva = lo realmente cobrado en este pago
+  creadoEn  DateTime  @default(now())
 
   venta     Venta     @relation(fields: [ventaId], references: [id])
 }

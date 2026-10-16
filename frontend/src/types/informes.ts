@@ -78,3 +78,35 @@ export interface InformeProduccion {
   porDensidad: { densidad: number; registros: number; totalCm: number }[];
   porBodega: { bodegaId: number; bodega: string; registros: number; totalCm: number }[];
 }
+
+
+export interface InformeIngresos {
+  desde: string;
+  hasta: string;
+  resumen: {
+    totalIngresado: number;
+    porVentas: number;
+    porAbonos: number;
+    iva: number;
+  };
+  porMedio: {
+    medio: 'EFECTIVO' | 'DEBITO' | 'TRANSFERENCIA';
+    cantidad: number;
+    neto: number;
+    iva: number;
+    ventasTotal: number;
+    abonosTotal: number;
+    total: number;
+  }[];
+  credito: {
+    ventasACredito: number;
+    saldoPendienteVentas: number;
+  };
+  porDia: {
+    fecha: string;
+    EFECTIVO: number;
+    DEBITO: number;
+    TRANSFERENCIA: number;
+    total: number;
+  }[];
+}
