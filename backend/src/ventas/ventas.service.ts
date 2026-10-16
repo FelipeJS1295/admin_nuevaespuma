@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVentaDto } from './dto/create-venta.dto';
-import { MedioPago, TipoMovimiento, Prisma } from '@prisma/client';
+import { MedioPago, TipoMovimiento, TipoDocumento, Prisma } from '@prisma/client';
 
 @Injectable()
 export class VentasService {
@@ -294,5 +294,21 @@ export class VentasService {
     });
 
     return { eliminada: id };
+  }
+
+  async registrarDocumento(id: number, tipoDocumento: TipoDocumento, numeroDocumento: string) {
+    // Solo se registra si la venta aún no tiene documento (así no se pisa uno existente)
+    const resultado = await this.prisma.venta.updateMany({
+      where: { id, numeroDocumento: null },
+      data: { tipoDocumento, numeroDocumento },
+    });
+
+    if (resultado.count === 0) {
+      const existe = await this.prisma.venta.findUnique({ where: { id }, select: { id: true } });
+      if (!existe) throw new NotFoundException(`Venta con id ${id} no encontrada`);
+      throw new BadRequestException('Esta venta ya tiene un documento registrado');
+    }
+
+    return { id, tipoDocumento, numeroDocumento };
   }
 }

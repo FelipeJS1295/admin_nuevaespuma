@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import type { Venta } from '../types/venta';
 import VentaModal from '../components/VentaModal';
 import PagarSaldoModal from '../components/PagarSaldoModal';
+import RegistrarDocumentoModal from '../components/RegistrarDocumentoModal';
 import { Plus, ChevronDown, ChevronUp, AlertTriangle, CircleDollarSign, Search, X, Trash2 } from 'lucide-react';
 
 const etiquetasMedioPago: Record<string, string> = {
@@ -39,6 +40,7 @@ export default function Ventas() {
   const [ventaExpandida, setVentaExpandida] = useState<number | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ventaAPagar, setVentaAPagar] = useState<Venta | null>(null);
+  const [ventaADocumentar, setVentaADocumentar] = useState<Venta | null>(null);
 
   // Filtros (por defecto: solo hoy)
   const [desde, setDesde] = useState(hoy());
@@ -293,7 +295,17 @@ export default function Ventas() {
                           <span className="font-mono">{v.numeroDocumento}</span>
                         </span>
                       ) : (
-                        <span className="text-ink/30">-</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setVentaADocumentar(v);
+                          }}
+                          className="inline-flex items-center gap-1 text-xs text-amber-dark hover:underline"
+                          title="Registrar factura o nota de venta"
+                        >
+                          <Plus size={12} />
+                          Agregar
+                        </button>
                       )}
                     </td>
                     <td className="py-2.5 px-4 text-ink/60 text-sm cursor-pointer" onClick={() => alternarExpandida(v.id)}>
@@ -389,6 +401,14 @@ export default function Ventas() {
       )}
 
       <VentaModal abierto={modalAbierto} onCerrar={() => setModalAbierto(false)} onVentaCreada={handleVentaCreada} />
+
+            {ventaADocumentar && (
+        <RegistrarDocumentoModal
+          venta={ventaADocumentar}
+          onCerrar={() => setVentaADocumentar(null)}
+          onGuardado={cargarVentas}
+        />
+      )}
 
       {ventaAPagar && (
         <PagarSaldoModal

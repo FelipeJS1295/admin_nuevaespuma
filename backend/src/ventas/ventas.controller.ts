@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
 import { VentasService } from './ventas.service';
 import { CreateVentaDto } from './dto/create-venta.dto';
 import { RegistrarPagoPendienteDto } from './dto/registrar-pago-pendiente.dto';
+import { RegistrarDocumentoDto } from './dto/registrar-documento.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -42,6 +43,11 @@ export class VentasController {
   @Post(':id/pagos')
   registrarPago(@Param('id', ParseIntPipe) id: number, @Body() dto: RegistrarPagoPendienteDto) {
     return this.ventasService.registrarPagoPendiente(id, dto.monto, dto.medioPago, dto.conIva ?? false);
+  }
+
+   @Patch(':id/documento')
+  registrarDocumento(@Param('id', ParseIntPipe) id: number, @Body() dto: RegistrarDocumentoDto) {
+    return this.ventasService.registrarDocumento(id, dto.tipoDocumento, dto.numeroDocumento);
   }
 
   // Solo administradores pueden eliminar ventas (este @Roles reemplaza al de la clase)
