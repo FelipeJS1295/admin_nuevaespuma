@@ -115,6 +115,8 @@ model Venta {
   iva            Float     @default(0) // suma del IVA de todos los pagos que llevan IVA
   total          Float     // subtotal + iva = lo realmente cobrado hasta ahora
   saldoPendiente Float     @default(0) // monto neto aún no pagado
+  tipoDocumento   TipoDocumento?
+  numeroDocumento String?
   creadoEn       DateTime  @default(now())
 
   bodega     Bodega      @relation(fields: [bodegaId], references: [id])
@@ -157,4 +159,9 @@ model Abono {
   creadoEn    DateTime  @default(now())
 
   cliente     Cliente   @relation(fields: [clienteId], references: [id])
+}
+
+enum TipoDocumento {
+  FACTURA
+  NOTA_VENTA
 }

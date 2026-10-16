@@ -24,8 +24,9 @@ export class VentasController {
     @Query('hasta') hasta?: string,
     @Query('cliente') cliente?: string,
     @Query('estado') estado?: string,
+    @Query('documento') documento?: string,
   ) {
-    return this.ventasService.findAll({ desde, hasta, cliente, estado });
+    return this.ventasService.findAll({ desde, hasta, cliente, estado, documento });
   }
 
   @Get('del-dia')

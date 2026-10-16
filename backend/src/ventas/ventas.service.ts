@@ -8,7 +8,13 @@ export class VentasService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateVentaDto, usuarioId?: number) {
-    const { bodegaId, clienteId, items, pagos } = dto;
+        const { bodegaId, clienteId, items, pagos, tipoDocumento } = dto;
+    const numeroDocumento = dto.numeroDocumento?.trim() || undefined;
+
+    // El tipo y el número van juntos: o se indican los dos, o ninguno
+    if ((tipoDocumento && !numeroDocumento) || (!tipoDocumento && numeroDocumento)) {
+      throw new BadRequestException('Indica el tipo de documento y su número, o deja ambos vacíos');
+    }
 
     // 1. Validar bodega
     const bodega = await this.prisma.bodega.findUnique({ where: { id: bodegaId } });
@@ -89,6 +95,8 @@ export class VentasService {
           bodegaId,
           clienteId: clienteId ?? null,
           usuarioId: usuarioId ?? null,
+          tipoDocumento: tipoDocumento ?? null,
+          numeroDocumento: numeroDocumento ?? null,
           subtotal,
           iva: ivaTotal,
           total,
@@ -130,8 +138,8 @@ export class VentasService {
     });
   }
 
-  findAll(filtros: { desde?: string; hasta?: string; cliente?: string; estado?: string }) {
-    const { desde, hasta, cliente, estado } = filtros;
+  findAll(filtros: { desde?: string; hasta?: string; cliente?: string; estado?: string; documento?: string }) {
+    const { desde, hasta, cliente, estado, documento } = filtros;
     const where: Prisma.VentaWhereInput = {};
 
     // Rango de fechas (el día "hasta" se incluye completo)
@@ -150,6 +158,11 @@ export class VentasService {
           { rut: { contains: cliente.trim(), mode: 'insensitive' } },
         ],
       };
+    }
+
+        // Número de factura o nota de venta (coincidencia parcial, sin importar mayúsculas)
+    if (documento && documento.trim()) {
+      where.numeroDocumento = { contains: documento.trim(), mode: 'insensitive' };
     }
 
     // Estado de pago

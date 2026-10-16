@@ -44,6 +44,7 @@ export default function Ventas() {
   const [desde, setDesde] = useState(hoy());
   const [hasta, setHasta] = useState(hoy());
   const [cliente, setCliente] = useState('');
+  const [documento, setDocumento] = useState('');
   const [estado, setEstado] = useState<'todas' | 'pendientes' | 'pagadas'>('todas');
 
   // Evita que una respuesta lenta pise a una más reciente
@@ -55,6 +56,7 @@ export default function Ventas() {
     if (desde) params.desde = desde;
     if (hasta) params.hasta = hasta;
     if (cliente.trim()) params.cliente = cliente.trim();
+    if (documento.trim()) params.documento = documento.trim();
     if (estado !== 'todas') params.estado = estado;
 
     const res = await api.get<Venta[]>('/ventas', { params });
@@ -67,7 +69,7 @@ export default function Ventas() {
   useEffect(() => {
     const espera = setTimeout(cargarVentas, 300);
     return () => clearTimeout(espera);
-  }, [desde, hasta, cliente, estado]);
+  }, [desde, hasta, cliente, estado, documento]);
 
   const handleVentaCreada = (nombreClienteSuperaLimite?: string) => {
     if (nombreClienteSuperaLimite) {
@@ -102,11 +104,12 @@ export default function Ventas() {
     setDesde(hoy());
     setHasta(hoy());
     setCliente('');
+    setDocumento('');
     setEstado('todas');
   };
 
   const esSoloHoy = desde === hoy() && hasta === hoy();
-  const hayFiltrosExtra = cliente.trim() !== '' || estado !== 'todas' || !esSoloHoy;
+  const hayFiltrosExtra = cliente.trim() !== '' || documento.trim() !== '' || estado !== 'todas' || !esSoloHoy;
 
   const totalCobrado = ventas.reduce((acc, v) => acc + v.total, 0);
   const totalPendiente = ventas.reduce((acc, v) => acc + v.saldoPendiente, 0);
@@ -174,6 +177,16 @@ export default function Ventas() {
                 onChange={(e) => setCliente(e.target.value)}
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-ink/50 mb-1">N° de documento</label>
+            <input
+              className="border border-ink/15 rounded px-3 py-2 w-full text-sm lg:w-40"
+              placeholder="Factura o nota..."
+              value={documento}
+              onChange={(e) => setDocumento(e.target.value)}
+            />
           </div>
 
           <div>
@@ -250,6 +263,7 @@ export default function Ventas() {
                 <th className="py-2.5 px-4 font-medium">Fecha</th>
                 <th className="py-2.5 px-4 font-medium">Bodega</th>
                 <th className="py-2.5 px-4 font-medium">Cliente</th>
+                <th className="py-2.5 px-4 font-medium">Documento</th>
                 <th className="py-2.5 px-4 font-medium">Ítems</th>
                 <th className="py-2.5 px-4 font-medium">Total</th>
                 <th className="py-2.5 px-4 font-medium">Pendiente</th>
@@ -271,6 +285,16 @@ export default function Ventas() {
                     </td>
                     <td className="py-2.5 px-4 cursor-pointer" onClick={() => alternarExpandida(v.id)}>
                       {v.cliente ? v.cliente.nombre : <span className="text-ink/40">Sin cliente</span>}
+                    </td>
+                    <td className="py-2.5 px-4 text-sm cursor-pointer" onClick={() => alternarExpandida(v.id)}>
+                      {v.numeroDocumento ? (
+                        <span>
+                          <span className="text-ink/50">{v.tipoDocumento === 'FACTURA' ? 'Factura' : 'Nota de venta'}</span>{' '}
+                          <span className="font-mono">{v.numeroDocumento}</span>
+                        </span>
+                      ) : (
+                        <span className="text-ink/30">-</span>
+                      )}
                     </td>
                     <td className="py-2.5 px-4 text-ink/60 text-sm cursor-pointer" onClick={() => alternarExpandida(v.id)}>
                       {v.items.length} producto(s)
@@ -315,7 +339,7 @@ export default function Ventas() {
                   </tr>
                   {ventaExpandida === v.id && (
                     <tr className="bg-ink/[0.015]">
-                      <td colSpan={7} className="px-4 pb-4 pt-1">
+                      <td colSpan={8} className="px-4 pb-4 pt-1">
                         <div className="grid grid-cols-2 gap-6">
                           <div>
                             <p className="text-xs font-medium text-ink/50 mb-1.5">Productos</p>
@@ -354,7 +378,7 @@ export default function Ventas() {
               ))}
               {ventas.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-ink/40">
+                  <td colSpan={8} className="py-8 text-center text-ink/40">
                     No se encontraron ventas con esos filtros.
                   </td>
                 </tr>

@@ -44,6 +44,8 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   const [bodegaId, setBodegaId] = useState('');
   const [clienteId, setClienteId] = useState('');
   const [busquedaCliente, setBusquedaCliente] = useState('');
+  const [tipoDocumento, setTipoDocumento] = useState<'' | 'FACTURA' | 'NOTA_VENTA'>('');
+  const [numeroDocumento, setNumeroDocumento] = useState('');
   const [buscadorClienteAbierto, setBuscadorClienteAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
@@ -150,7 +152,9 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
     setPagos(pagos.filter((_, i) => i !== index));
   };
 
-  const limpiarYcerrar = () => {
+    const limpiarYcerrar = () => {
+    setTipoDocumento('');
+    setNumeroDocumento('');
     setBodegaId('');
     setClienteId('');
     setBusquedaCliente('');
@@ -167,6 +171,9 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
     if (!bodegaId) return setError('Selecciona una bodega.');
     if (carrito.length === 0) return setError('Agrega al menos un producto al carrito.');
     if (restante < -0.5) return setError('La suma de los pagos no puede superar el subtotal.');
+    if (tipoDocumento && !numeroDocumento.trim()) {
+      return setError('Escribe el número del documento, o elige "Sin documento".');
+    }
 
     const hayCredito = pagos.some((p) => p.medioPago === 'CREDITO_CLIENTE' && Number(p.monto) > 0);
     const quedaPendiente = restante > 0.5;
@@ -179,6 +186,8 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
       const res = await api.post('/ventas', {
         bodegaId: Number(bodegaId),
         clienteId: clienteId ? Number(clienteId) : undefined,
+        tipoDocumento: tipoDocumento || undefined,
+        numeroDocumento: tipoDocumento ? numeroDocumento.trim() : undefined,
         items: carrito.map((i) => ({ productoId: i.productoId, espesorCm: i.espesorCm })),
         pagos: pagos
           .filter((p) => Number(p.monto) > 0)
@@ -316,6 +325,31 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
               </p>
             )}
             {!clienteSeleccionado && <div className="mb-3" />}
+
+                       <label className="block text-sm text-ink/60 mb-1">Documento (opcional)</label>
+            <div className="flex gap-2 mb-4">
+              <select
+                className="border border-ink/15 rounded px-2 py-2 text-sm w-40"
+                value={tipoDocumento}
+                onChange={(e) => {
+                  const valor = e.target.value as '' | 'FACTURA' | 'NOTA_VENTA';
+                  setTipoDocumento(valor);
+                  if (!valor) setNumeroDocumento('');
+                }}
+              >
+                <option value="">Sin documento</option>
+                <option value="FACTURA">Factura</option>
+                <option value="NOTA_VENTA">Nota de venta</option>
+              </select>
+              <input
+                className="border border-ink/15 rounded px-3 py-2 text-sm flex-1 disabled:bg-ink/5"
+                placeholder="N° de documento"
+                maxLength={30}
+                disabled={!tipoDocumento}
+                value={numeroDocumento}
+                onChange={(e) => setNumeroDocumento(e.target.value)}
+              />
+            </div>
 
             <h3 className="text-sm font-medium text-ink/70 mb-2">Pagos</h3>
             <div className="space-y-2 mb-2">

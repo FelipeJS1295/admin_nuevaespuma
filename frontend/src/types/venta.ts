@@ -31,6 +31,8 @@ export interface Venta {
   iva: number;
   total: number;
   saldoPendiente: number;
+  tipoDocumento: 'FACTURA' | 'NOTA_VENTA' | null;
+  numeroDocumento: string | null;
   creadoEn: string;
   bodega: { id: number; nombre: string };
   cliente: { id: number; nombre: string; rut: string } | null;
