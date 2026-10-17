@@ -88,8 +88,14 @@ export class VentasService {
         );
       }
       const disponible = cliente.limiteCredito - cliente.creditoUsado;
-      // Se permite superar el límite, pero se marca como advertencia (no se bloquea)
-      superaLimite = montoAfectaCredito > disponible;
+      // Si la venta deja al cliente sobre su límite de crédito, no se puede realizar
+      if (montoAfectaCredito > disponible) {
+        throw new BadRequestException(
+          `No se puede realizar la venta: ${cliente.nombre} está en su límite de crédito ` +
+            `(disponible: $${Math.max(0, disponible).toLocaleString('es-CL')}, ` +
+            `esta venta necesita: $${montoAfectaCredito.toLocaleString('es-CL')}).`,
+        );
+      }
     }
 
     // 6. Ejecutar todo en una transacción

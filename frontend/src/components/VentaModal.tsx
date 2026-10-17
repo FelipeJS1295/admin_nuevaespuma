@@ -104,7 +104,24 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   const totalConIva = subtotal + ivaTotal;
   const restante = subtotal - sumaMontosNetos;
 
-  const clienteSeleccionado = clientes.find((c) => c.id === Number(clienteId));
+    const clienteSeleccionado = clientes.find((c) => c.id === Number(clienteId));
+
+  // Lo que esta venta le sumaría a la deuda: pagos con crédito (con IVA) + lo que quede pendiente
+  const montoQueAfectaCredito =
+    pagos
+      .filter((p) => p.medioPago === 'CREDITO_CLIENTE')
+      .reduce((acc, p) => {
+        const monto = Number(p.monto) || 0;
+        const iva = clienteConFactura || p.conIva ? Math.round(monto * TASA_IVA) : 0;
+        return acc + monto + iva;
+      }, 0) + (restante > 0.5 ? restante : 0);
+
+  const creditoDisponible = clienteSeleccionado
+    ? clienteSeleccionado.limiteCredito - clienteSeleccionado.creditoUsado
+    : 0;
+
+  const superaLimiteCredito =
+    !!clienteSeleccionado && montoQueAfectaCredito > 0 && montoQueAfectaCredito > creditoDisponible;
 
   const clientesFiltrados = useMemo(() => {
     if (!busquedaCliente.trim()) return clientes.slice(0, 8);
@@ -435,11 +452,23 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
               </div>
             </div>
 
+            {superaLimiteCredito && clienteSeleccionado && (
+              <div className="border border-danger/30 bg-danger/5 text-danger text-sm rounded p-3 mb-3">
+                <p className="font-medium">No se puede hacer la venta</p>
+                <p>{clienteSeleccionado.nombre} está en su límite de crédito.</p>
+                <p className="text-xs mt-1 font-mono">
+                  Disponible ${Math.max(0, creditoDisponible).toLocaleString('es-CL')} · Esta venta necesita $
+                  {montoQueAfectaCredito.toLocaleString('es-CL')}
+                </p>
+                <p className="text-xs mt-1">Baja el monto a crédito o págalo con otro medio.</p>
+              </div>
+            )}
+
             {error && <p className="text-danger text-sm mb-3">{error}</p>}
 
             <button
               onClick={finalizarVenta}
-              disabled={guardando}
+              disabled={guardando || superaLimiteCredito}
               className="bg-amber text-graphite font-medium px-4 py-2.5 rounded hover:bg-amber-dark transition disabled:opacity-50"
             >
               {guardando ? 'Guardando...' : 'Finalizar venta'}
