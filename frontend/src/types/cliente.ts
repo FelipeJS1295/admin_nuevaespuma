@@ -6,6 +6,7 @@ export interface Cliente {
   creditoUsado: number;
   activo: boolean;
   conFactura: boolean;
+  diasCredito: number;
   creadoEn: string;
 }
 

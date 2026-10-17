@@ -74,6 +74,7 @@ model Cliente {
   creditoUsado  Float    @default(0)
   activo        Boolean  @default(true)
   conFactura    Boolean  @default(false)
+  diasCredito   Int      @default(0)
   creadoEn      DateTime @default(now())
 
   ventas        Venta[]
@@ -118,6 +119,7 @@ model Venta {
   saldoPendiente Float     @default(0) // monto neto aún no pagado
   tipoDocumento   TipoDocumento?
   numeroDocumento String?
+  fechaVencimiento DateTime? @db.Date
   creadoEn       DateTime  @default(now())
 
   bodega     Bodega      @relation(fields: [bodegaId], references: [id])

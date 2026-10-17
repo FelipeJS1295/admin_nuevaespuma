@@ -22,6 +22,16 @@ interface PagoForm {
   conIva: boolean;
 }
 
+interface EstadoCredito {
+  diasCredito: number;
+  vencida: boolean;
+  montoVencido: number;
+  ventasVencidas: number;
+  fechaVencimientoMasAntigua: string | null;
+  diasVencida: number;
+  proximoVencimiento: string | null;
+}
+
 const pagoVacio = (): PagoForm => ({ medioPago: 'EFECTIVO', monto: '', borrador: '', conIva: false });
 
 const etiquetasMedioPago: Record<MedioPago, string> = {
@@ -34,6 +44,23 @@ const etiquetasMedioPago: Record<MedioPago, string> = {
 const TASA_IVA = 0.19;
 
 const pesos = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('es-CL')}`;
+
+// Fechas en formato AAAA-MM-DD (lo que entiende el campo de fecha)
+const hoyLocal = () => new Date().toLocaleDateString('en-CA');
+
+const sumarDias = (dias: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + dias);
+  return d.toLocaleDateString('en-CA');
+};
+
+const fechaLarga = (fecha: string) =>
+  new Date(`${fecha}T00:00:00`).toLocaleDateString('es-CL', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 
 interface Props {
   abierto: boolean;
@@ -50,6 +77,8 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   const [clienteId, setClienteId] = useState('');
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [buscadorClienteAbierto, setBuscadorClienteAbierto] = useState(false);
+  const [estadoCredito, setEstadoCredito] = useState<EstadoCredito | null>(null);
+  const [fechaVencimiento, setFechaVencimiento] = useState('');
   const [tipoDocumento, setTipoDocumento] = useState<'' | 'FACTURA' | 'NOTA_VENTA'>('');
   const [numeroDocumento, setNumeroDocumento] = useState('');
   const [busqueda, setBusqueda] = useState('');
@@ -78,6 +107,27 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
     };
     cargar();
   }, [abierto]);
+
+  // Al elegir un cliente, consulta si tiene deuda vencida
+  useEffect(() => {
+    if (!clienteId) {
+      setEstadoCredito(null);
+      return;
+    }
+    let vigente = true;
+    const cargar = async () => {
+      try {
+        const res = await api.get<EstadoCredito>(`/clientes/${clienteId}/estado-credito`);
+        if (vigente) setEstadoCredito(res.data);
+      } catch {
+        if (vigente) setEstadoCredito(null);
+      }
+    };
+    cargar();
+    return () => {
+      vigente = false;
+    };
+  }, [clienteId]);
 
   const productosFiltrados = useMemo(
     () => productos.filter((p) => p.nombre.toLowerCase().includes(busqueda.toLowerCase())),
@@ -117,6 +167,9 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   const superaLimiteCredito =
     !!clienteSeleccionado && montoQueAfectaCredito > 0 && montoQueAfectaCredito > creditoDisponible;
 
+  // Con deuda vencida no se vende a crédito (sí se puede vender si se paga completo)
+  const bloqueadoPorVencida = !!estadoCredito?.vencida && montoQueAfectaCredito > 0;
+
   const clientesFiltrados = useMemo(() => {
     if (!busquedaCliente.trim()) return clientes.slice(0, 8);
     return clientes
@@ -129,13 +182,17 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   }, [clientes, busquedaCliente]);
 
   const seleccionarCliente = (id: number) => {
+    const elegido = clientes.find((x) => x.id === id);
     setClienteId(String(id));
+    // Fecha propuesta: hoy + los días de crédito del cliente (vacía si no tiene plazo definido)
+    setFechaVencimiento(elegido && elegido.diasCredito > 0 ? sumarDias(elegido.diasCredito) : '');
     setBuscadorClienteAbierto(false);
     setBusquedaCliente('');
   };
 
   const quitarCliente = () => {
     setClienteId('');
+    setFechaVencimiento('');
     setBusquedaCliente('');
   };
 
@@ -187,6 +244,8 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
     setNumeroDocumento('');
     setBodegaId('');
     setClienteId('');
+    setEstadoCredito(null);
+    setFechaVencimiento('');
     setBusquedaCliente('');
     setBuscadorClienteAbierto(false);
     setBusqueda('');
@@ -214,6 +273,11 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
       return setError('Selecciona un cliente para usar "Crédito del cliente" o dejar saldo pendiente.');
     }
 
+    if (montoQueAfectaCredito > 0 && clienteId) {
+      if (!fechaVencimiento) return setError('Indica la fecha de vencimiento del crédito.');
+      if (fechaVencimiento < hoyLocal()) return setError('La fecha de vencimiento no puede ser anterior a hoy.');
+    }
+
     setGuardando(true);
     try {
       const res = await api.post('/ventas', {
@@ -221,6 +285,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
         clienteId: clienteId ? Number(clienteId) : undefined,
         tipoDocumento: tipoDocumento || undefined,
         numeroDocumento: tipoDocumento ? numeroDocumento.trim() : undefined,
+        fechaVencimiento: montoQueAfectaCredito > 0 && clienteId ? fechaVencimiento : undefined,
         items: carrito.map((i) => ({ productoId: i.productoId, espesorCm: i.espesorCm })),
         pagos: pagos
           .filter((p) => Number(p.monto) > 0)
@@ -365,6 +430,17 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                 <p className="text-xs text-ink/50 font-mono">
                   Límite {pesos(clienteSeleccionado.limiteCredito)} · Usado {pesos(clienteSeleccionado.creditoUsado)}
                 </p>
+                {estadoCredito?.vencida && (
+                  <p className="text-base font-bold text-danger mt-1">
+                    Deuda vencida: {pesos(estadoCredito.montoVencido)} (hace {estadoCredito.diasVencida}{' '}
+                    {estadoCredito.diasVencida === 1 ? 'día' : 'días'})
+                  </p>
+                )}
+                {estadoCredito && !estadoCredito.vencida && estadoCredito.proximoVencimiento && (
+                  <p className="text-xs text-ink/50 mt-1">
+                    Próximo vencimiento: {fechaLarga(estadoCredito.proximoVencimiento)}
+                  </p>
+                )}
               </div>
             )}
             {!clienteSeleccionado && <div className="mb-3" />}
@@ -479,6 +555,30 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
               + Agregar otro medio de pago
             </button>
 
+            {montoQueAfectaCredito > 0 && clienteSeleccionado && (
+              <div className="border border-ink/10 rounded p-3 mb-3">
+                <label className="block text-sm font-medium text-ink/70 mb-1">Vencimiento del crédito</label>
+                <input
+                  type="date"
+                  className="border border-ink/15 rounded px-3 py-2 text-sm w-full"
+                  min={hoyLocal()}
+                  value={fechaVencimiento}
+                  onChange={(e) => setFechaVencimiento(e.target.value)}
+                />
+                {fechaVencimiento ? (
+                  <p className="text-sm font-bold text-ink mt-2 capitalize">{fechaLarga(fechaVencimiento)}</p>
+                ) : (
+                  <p className="text-xs text-danger mt-1">
+                    Este cliente no tiene días de crédito definidos: elige la fecha.
+                  </p>
+                )}
+                <p className="text-xs text-ink/40 mt-1">
+                  {clienteSeleccionado.diasCredito > 0 ? `Plazo del cliente: ${clienteSeleccionado.diasCredito} días. ` : ''}
+                  Si no ha pagado, desde el día siguiente no se le venderá a crédito.
+                </p>
+              </div>
+            )}
+
             <div className="border-t border-ink/10 pt-3 mb-2 space-y-1">
               <div className="flex justify-between text-sm text-ink/60">
                 <span>Subtotal (neto)</span>
@@ -506,6 +606,26 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
               </div>
             </div>
 
+            {bloqueadoPorVencida && clienteSeleccionado && estadoCredito && (
+              <div className="border border-danger/30 bg-danger/5 text-danger text-sm rounded p-3 mb-3">
+                <p className="font-medium">No se puede hacer la venta a crédito</p>
+                <p>{clienteSeleccionado.nombre} tiene deuda vencida.</p>
+                <p className="text-xs mt-1 font-mono">
+                  Vencido {pesos(estadoCredito.montoVencido)} · hace {estadoCredito.diasVencida}{' '}
+                  {estadoCredito.diasVencida === 1 ? 'día' : 'días'}
+                </p>
+                <p className="text-xs mt-1">
+                  Debe pagarla antes de comprar a crédito. Si paga esta venta completa, sí se puede realizar.
+                </p>
+              </div>
+            )}
+
+            {estadoCredito?.vencida && !bloqueadoPorVencida && (
+              <p className="text-xs text-amber-dark mb-3">
+                Este cliente tiene deuda vencida, pero esta venta no le suma deuda, por eso se puede realizar.
+              </p>
+            )}
+
             {superaLimiteCredito && clienteSeleccionado && (
               <div className="border border-danger/30 bg-danger/5 text-danger text-sm rounded p-3 mb-3">
                 <p className="font-medium">No se puede hacer la venta</p>
@@ -521,7 +641,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
 
             <button
               onClick={finalizarVenta}
-              disabled={guardando || superaLimiteCredito}
+              disabled={guardando || superaLimiteCredito || bloqueadoPorVencida}
               className="bg-amber text-graphite font-medium px-4 py-2.5 rounded hover:bg-amber-dark transition disabled:opacity-50"
             >
               {guardando ? 'Guardando...' : 'Finalizar venta'}

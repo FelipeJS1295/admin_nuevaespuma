@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
+import { calcularDeudaVencida } from './deuda-vencida';
 
 @Injectable()
 export class ClientesService {
@@ -34,6 +35,25 @@ export class ClientesService {
       throw new NotFoundException(`Cliente con id ${id} no encontrado`);
     }
     return cliente;
+  }
+
+  // Situación de crédito de un cliente: días de crédito y deuda vencida (para la pantalla de ventas)
+  async estadoCredito(id: number) {
+    const cliente = await this.findOne(id);
+    const ventas = await this.prisma.venta.findMany({
+      where: { clienteId: id },
+      select: {
+        id: true,
+        creadoEn: true,
+        fechaVencimiento: true,
+        saldoPendiente: true,
+        pagos: { select: { medioPago: true, total: true } },
+      },
+    });
+    return {
+      diasCredito: cliente.diasCredito,
+      ...calcularDeudaVencida(cliente.creditoUsado, ventas),
+    };
   }
 
   async findDetalle(id: number) {

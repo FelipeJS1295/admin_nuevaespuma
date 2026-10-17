@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVentaDto } from './dto/create-venta.dto';
+import { calcularDeudaVencida, hoyEnChile } from '../clientes/deuda-vencida';
 import { MedioPago, TipoMovimiento, TipoDocumento, Prisma } from '@prisma/client';
 
 @Injectable()
@@ -98,6 +99,52 @@ export class VentasService {
       }
     }
 
+    // Vencimiento: solo aplica cuando esta venta le suma deuda al cliente
+    let fechaVencimiento: Date | null = null;
+    if (montoAfectaCredito > 0 && cliente) {
+      const hoy = hoyEnChile();
+
+      // La fecha que viene en la venta o, si no viene, hoy + los días de crédito del cliente
+      let fechaTexto = dto.fechaVencimiento;
+      if (!fechaTexto && cliente.diasCredito > 0) {
+        const calculada = new Date(`${hoy}T00:00:00Z`);
+        calculada.setUTCDate(calculada.getUTCDate() + cliente.diasCredito);
+        fechaTexto = calculada.toISOString().slice(0, 10);
+      }
+      if (!fechaTexto) {
+        throw new BadRequestException(
+          `Indica la fecha de vencimiento: ${cliente.nombre} no tiene días de crédito definidos.`,
+        );
+      }
+      if (fechaTexto < hoy) {
+        throw new BadRequestException('La fecha de vencimiento no puede ser anterior a hoy.');
+      }
+      fechaVencimiento = new Date(`${fechaTexto}T00:00:00Z`);
+      if (isNaN(fechaVencimiento.getTime())) {
+        throw new BadRequestException('La fecha de vencimiento no es válida.');
+      }
+
+      // No se vende a crédito a un cliente con deuda vencida
+      const ventasDelCliente = await this.prisma.venta.findMany({
+        where: { clienteId: cliente.id },
+        select: {
+          id: true,
+          creadoEn: true,
+          fechaVencimiento: true,
+          saldoPendiente: true,
+          pagos: { select: { medioPago: true, total: true } },
+        },
+      });
+      const deuda = calcularDeudaVencida(cliente.creditoUsado, ventasDelCliente);
+      if (deuda.vencida) {
+        throw new BadRequestException(
+          `No se puede realizar la venta: ${cliente.nombre} tiene deuda vencida ` +
+            `($${deuda.montoVencido.toLocaleString('es-CL')}, vencida hace ${deuda.diasVencida} día(s)). ` +
+            'Debe pagarla antes de comprar a crédito.',
+        );
+      }
+    }
+
     // 6. Ejecutar todo en una transacción
     return this.prisma.$transaction(async (tx) => {
       const venta = await tx.venta.create({
@@ -107,6 +154,7 @@ export class VentasService {
           usuarioId: usuarioId ?? null,
           tipoDocumento: tipoDocumento ?? null,
           numeroDocumento: numeroDocumento ?? null,
+          fechaVencimiento,
           subtotal,
           iva: ivaTotal,
           total,

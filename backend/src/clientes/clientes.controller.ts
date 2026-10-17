@@ -46,6 +46,11 @@ export class ClientesController {
     return this.clientesService.findOne(id);
   }
 
+  @Get(':id/estado-credito')
+  estadoCredito(@Param('id', ParseIntPipe) id: number) {
+    return this.clientesService.estadoCredito(id);
+  }
+
   @Get(':id/detalle')
   findDetalle(@Param('id', ParseIntPipe) id: number) {
     return this.clientesService.findDetalle(id);

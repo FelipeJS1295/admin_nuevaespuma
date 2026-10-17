@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsBoolean, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsBoolean, IsInt, Min, Max } from 'class-validator';
 
 export class CreateClienteDto {
   @IsString()
@@ -11,6 +11,12 @@ export class CreateClienteDto {
   @IsNumber()
   @Min(0)
   limiteCredito?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  diasCredito?: number;
 
   @IsOptional()
   @IsBoolean()

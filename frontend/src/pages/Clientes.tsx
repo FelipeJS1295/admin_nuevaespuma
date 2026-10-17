@@ -6,6 +6,11 @@ import Modal from '../components/Modal';
 import ImportarClientesModal from '../components/ImportarClientesModal';
 import { Pencil, Power, Plus, Search, FileSpreadsheet, Eye } from 'lucide-react';
 
+const mensajeDeError = (err: any, porDefecto: string) => {
+  const mensaje = err.response?.data?.message;
+  return Array.isArray(mensaje) ? mensaje.join('. ') : mensaje || porDefecto;
+};
+
 export default function Clientes() {
   const navigate = useNavigate();
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -22,6 +27,7 @@ export default function Clientes() {
   const [rut, setRut] = useState('');
   const [nombre, setNombre] = useState('');
   const [limiteCredito, setLimiteCredito] = useState('');
+  const [diasCredito, setDiasCredito] = useState('');
   const [conFactura, setConFactura] = useState(false);
   const [error, setError] = useState('');
 
@@ -29,6 +35,7 @@ export default function Clientes() {
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [nombreEdit, setNombreEdit] = useState('');
   const [limiteCreditoEdit, setLimiteCreditoEdit] = useState('');
+  const [diasCreditoEdit, setDiasCreditoEdit] = useState('');
   const [conFacturaEdit, setConFacturaEdit] = useState(false);
   const [errorEdit, setErrorEdit] = useState('');
 
@@ -58,12 +65,13 @@ export default function Clientes() {
     });
   }, [clientes, busqueda, filtroEstado, soloAlLimite]);
 
-    const cerrarModalCrear = () => {
-    setConFactura(false);
+  const cerrarModalCrear = () => {
     setModalCrearAbierto(false);
     setRut('');
     setNombre('');
     setLimiteCredito('');
+    setDiasCredito('');
+    setConFactura(false);
     setError('');
   };
 
@@ -79,12 +87,13 @@ export default function Clientes() {
         rut,
         nombre,
         limiteCredito: limiteCredito ? Number(limiteCredito) : 0,
+        diasCredito: diasCredito ? Number(diasCredito) : 0,
         conFactura,
       });
       cerrarModalCrear();
       cargarClientes();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Ocurrió un error al crear el cliente.');
+      setError(mensajeDeError(err, 'Ocurrió un error al crear el cliente.'));
     }
   };
 
@@ -92,6 +101,7 @@ export default function Clientes() {
     setClienteEditando(cliente);
     setNombreEdit(cliente.nombre);
     setLimiteCreditoEdit(String(cliente.limiteCredito));
+    setDiasCreditoEdit(String(cliente.diasCredito ?? 0));
     setConFacturaEdit(cliente.conFactura);
     setErrorEdit('');
   };
@@ -104,12 +114,13 @@ export default function Clientes() {
       await api.patch(`/clientes/${clienteEditando.id}`, {
         nombre: nombreEdit,
         limiteCredito: Number(limiteCreditoEdit),
+        diasCredito: Number(diasCreditoEdit) || 0,
         conFactura: conFacturaEdit,
       });
       setClienteEditando(null);
       cargarClientes();
     } catch (err: any) {
-      setErrorEdit(err.response?.data?.message || 'Ocurrió un error al guardar.');
+      setErrorEdit(mensajeDeError(err, 'Ocurrió un error al guardar.'));
     }
   };
 
@@ -128,7 +139,7 @@ export default function Clientes() {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-8 max-w-6xl mx-auto">
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-ink mb-1">Clientes</h1>
@@ -193,6 +204,7 @@ export default function Clientes() {
               <th className="py-2.5 px-4 font-medium">Límite crédito</th>
               <th className="py-2.5 px-4 font-medium">Usado</th>
               <th className="py-2.5 px-4 font-medium">Disponible</th>
+              <th className="py-2.5 px-4 font-medium">Plazo</th>
               <th className="py-2.5 px-4 font-medium">Estado</th>
               <th className="py-2.5 px-4 font-medium text-right">Acciones</th>
             </tr>
@@ -203,7 +215,7 @@ export default function Clientes() {
               return (
                 <tr key={c.id} className="border-b border-ink/5 last:border-0">
                   <td className="py-2.5 px-4 font-mono text-sm">{c.rut}</td>
-                    <td className="py-2.5 px-4">
+                  <td className="py-2.5 px-4">
                     {c.nombre}
                     {c.conFactura && (
                       <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-amber/15 text-amber-dark">Factura</span>
@@ -213,6 +225,9 @@ export default function Clientes() {
                   <td className="py-2.5 px-4 font-mono text-sm">${c.creditoUsado.toLocaleString('es-CL')}</td>
                   <td className={`py-2.5 px-4 font-mono text-sm font-medium ${disponible <= 0 ? 'text-danger' : 'text-teal'}`}>
                     ${disponible.toLocaleString('es-CL')}
+                  </td>
+                  <td className="py-2.5 px-4 font-mono text-sm">
+                    {c.diasCredito > 0 ? `${c.diasCredito} días` : <span className="text-ink/30">Sin plazo</span>}
                   </td>
                   <td className="py-2.5 px-4">
                     {c.activo ? (
@@ -255,7 +270,7 @@ export default function Clientes() {
             })}
             {clientesFiltrados.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-ink/40">
+                <td colSpan={8} className="py-8 text-center text-ink/40">
                   No se encontraron clientes con esos filtros.
                 </td>
               </tr>
@@ -281,12 +296,25 @@ export default function Clientes() {
           />
           <label className="block text-sm text-ink/60 mb-1">Límite de crédito</label>
           <input
-            className="border border-ink/15 rounded px-3 py-2 w-full mb-4"
+            className="border border-ink/15 rounded px-3 py-2 w-full mb-3"
             type="number"
             value={limiteCredito}
             onChange={(e) => setLimiteCredito(e.target.value)}
           />
-                    <label className="flex items-start gap-2 text-sm text-ink/70 mb-4 cursor-pointer">
+          <label className="block text-sm text-ink/60 mb-1">Días de crédito</label>
+          <input
+            className="border border-ink/15 rounded px-3 py-2 w-full mb-1"
+            type="number"
+            min={0}
+            max={365}
+            step={1}
+            value={diasCredito}
+            onChange={(e) => setDiasCredito(e.target.value)}
+          />
+          <p className="text-xs text-ink/40 mb-4">
+            Plazo para pagar sus compras a crédito. Con 0, la fecha de vencimiento se pide en cada venta.
+          </p>
+          <label className="flex items-start gap-2 text-sm text-ink/70 mb-4 cursor-pointer">
             <input
               type="checkbox"
               className="mt-0.5"
@@ -327,11 +355,22 @@ export default function Clientes() {
             onChange={(e) => setLimiteCreditoEdit(e.target.value)}
           />
           {clienteEditando && (
-            <p className="text-xs text-ink/40 mb-4">
+            <p className="text-xs text-ink/40 mb-3">
               Crédito ya usado: ${clienteEditando.creditoUsado.toLocaleString('es-CL')} (no editable aquí)
             </p>
           )}
-                   <label className="flex items-start gap-2 text-sm text-ink/70 mb-4 cursor-pointer">
+          <label className="block text-sm text-ink/60 mb-1">Días de crédito</label>
+          <input
+            className="border border-ink/15 rounded px-3 py-2 w-full mb-1"
+            type="number"
+            min={0}
+            max={365}
+            step={1}
+            value={diasCreditoEdit}
+            onChange={(e) => setDiasCreditoEdit(e.target.value)}
+          />
+          <p className="text-xs text-ink/40 mb-4">Se propone como plazo en las ventas nuevas. Con 0, se pide en cada venta.</p>
+          <label className="flex items-start gap-2 text-sm text-ink/70 mb-4 cursor-pointer">
             <input
               type="checkbox"
               className="mt-0.5"
