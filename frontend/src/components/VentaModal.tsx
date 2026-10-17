@@ -17,9 +17,12 @@ interface ItemCarrito {
 
 interface PagoForm {
   medioPago: MedioPago;
-  monto: string;
+  monto: string; // monto neto ya confirmado: es el que usan todos los cálculos
+  borrador: string; // lo que se está escribiendo; pasa a "monto" al salir del campo
   conIva: boolean;
 }
+
+const pagoVacio = (): PagoForm => ({ medioPago: 'EFECTIVO', monto: '', borrador: '', conIva: false });
 
 const etiquetasMedioPago: Record<MedioPago, string> = {
   EFECTIVO: 'Efectivo',
@@ -29,6 +32,8 @@ const etiquetasMedioPago: Record<MedioPago, string> = {
 };
 
 const TASA_IVA = 0.19;
+
+const pesos = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('es-CL')}`;
 
 interface Props {
   abierto: boolean;
@@ -44,12 +49,12 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   const [bodegaId, setBodegaId] = useState('');
   const [clienteId, setClienteId] = useState('');
   const [busquedaCliente, setBusquedaCliente] = useState('');
+  const [buscadorClienteAbierto, setBuscadorClienteAbierto] = useState(false);
   const [tipoDocumento, setTipoDocumento] = useState<'' | 'FACTURA' | 'NOTA_VENTA'>('');
   const [numeroDocumento, setNumeroDocumento] = useState('');
-  const [buscadorClienteAbierto, setBuscadorClienteAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
-  const [pagos, setPagos] = useState<PagoForm[]>([{ medioPago: 'EFECTIVO', monto: '', conIva: false }]);
+  const [pagos, setPagos] = useState<PagoForm[]>([pagoVacio()]);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
 
@@ -84,37 +89,26 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
     [carrito],
   );
 
-  const sumaMontosNetos = useMemo(
-    () => pagos.reduce((acc, p) => acc + (Number(p.monto) || 0), 0),
-    [pagos],
-  );
+  const clienteSeleccionado = clientes.find((c) => c.id === Number(clienteId));
 
   // Si el cliente es "con factura", todos los pagos llevan IVA
-  const clienteConFactura = clientes.find((c) => c.id === Number(clienteId))?.conFactura ?? false;
+  const clienteConFactura = clienteSeleccionado?.conFactura ?? false;
 
-  const ivaTotal = useMemo(
-    () =>
-      pagos.reduce(
-        (acc, p) => acc + (clienteConFactura || p.conIva ? Math.round((Number(p.monto) || 0) * TASA_IVA) : 0),
-        0,
-      ),
-    [pagos, clienteConFactura],
-  );
+  const conIvaEn = (p: PagoForm) => clienteConFactura || p.conIva;
+  const montoNeto = (p: PagoForm) => Number(p.monto) || 0;
+  const ivaDe = (p: PagoForm) => (conIvaEn(p) ? Math.round(montoNeto(p) * TASA_IVA) : 0);
+  const cobrarDe = (p: PagoForm) => montoNeto(p) + ivaDe(p);
 
+  // Todos los cálculos usan solo los montos ya confirmados (no lo que se está escribiendo)
+  const sumaMontosNetos = pagos.reduce((acc, p) => acc + montoNeto(p), 0);
+  const ivaTotal = pagos.reduce((acc, p) => acc + ivaDe(p), 0);
   const totalConIva = subtotal + ivaTotal;
   const restante = subtotal - sumaMontosNetos;
 
-    const clienteSeleccionado = clientes.find((c) => c.id === Number(clienteId));
-
   // Lo que esta venta le sumaría a la deuda: pagos con crédito (con IVA) + lo que quede pendiente
   const montoQueAfectaCredito =
-    pagos
-      .filter((p) => p.medioPago === 'CREDITO_CLIENTE')
-      .reduce((acc, p) => {
-        const monto = Number(p.monto) || 0;
-        const iva = clienteConFactura || p.conIva ? Math.round(monto * TASA_IVA) : 0;
-        return acc + monto + iva;
-      }, 0) + (restante > 0.5 ? restante : 0);
+    pagos.filter((p) => p.medioPago === 'CREDITO_CLIENTE').reduce((acc, p) => acc + cobrarDe(p), 0) +
+    (restante > 0.5 ? restante : 0);
 
   const creditoDisponible = clienteSeleccionado
     ? clienteSeleccionado.limiteCredito - clienteSeleccionado.creditoUsado
@@ -125,11 +119,13 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
 
   const clientesFiltrados = useMemo(() => {
     if (!busquedaCliente.trim()) return clientes.slice(0, 8);
-    return clientes.filter(
-      (c) =>
-        c.nombre.toLowerCase().includes(busquedaCliente.toLowerCase()) ||
-        c.rut.toLowerCase().includes(busquedaCliente.toLowerCase()),
-    ).slice(0, 8);
+    return clientes
+      .filter(
+        (c) =>
+          c.nombre.toLowerCase().includes(busquedaCliente.toLowerCase()) ||
+          c.rut.toLowerCase().includes(busquedaCliente.toLowerCase()),
+      )
+      .slice(0, 8);
   }, [clientes, busquedaCliente]);
 
   const seleccionarCliente = (id: number) => {
@@ -161,22 +157,32 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   };
 
   const agregarPago = () => {
-    setPagos([...pagos, { medioPago: 'EFECTIVO', monto: '', conIva: false }]);
+    setPagos((prev) => [...prev, pagoVacio()]);
   };
 
-  const actualizarPago = (index: number, campo: 'medioPago' | 'monto', valor: string) => {
-    setPagos(pagos.map((p, i) => (i === index ? { ...p, [campo]: valor } : p)));
+  const cambiarMedioPago = (index: number, medioPago: MedioPago) => {
+    setPagos((prev) => prev.map((p, i) => (i === index ? { ...p, medioPago } : p)));
   };
 
-  const actualizarPagoIva = (index: number, conIva: boolean) => {
-    setPagos(pagos.map((p, i) => (i === index ? { ...p, conIva } : p)));
+  const cambiarIva = (index: number, conIva: boolean) => {
+    setPagos((prev) => prev.map((p, i) => (i === index ? { ...p, conIva } : p)));
+  };
+
+  // Mientras se escribe, solo cambia el borrador: no se recalcula nada
+  const escribirMonto = (index: number, borrador: string) => {
+    setPagos((prev) => prev.map((p, i) => (i === index ? { ...p, borrador } : p)));
+  };
+
+  // Al salir del campo (Tab, clic fuera o Enter) el borrador pasa a ser el monto y se calcula
+  const confirmarMonto = (index: number) => {
+    setPagos((prev) => prev.map((p, i) => (i === index ? { ...p, monto: p.borrador } : p)));
   };
 
   const quitarPago = (index: number) => {
-    setPagos(pagos.filter((_, i) => i !== index));
+    setPagos((prev) => prev.filter((_, i) => i !== index));
   };
 
-    const limpiarYcerrar = () => {
+  const limpiarYcerrar = () => {
     setTipoDocumento('');
     setNumeroDocumento('');
     setBodegaId('');
@@ -185,16 +191,19 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
     setBuscadorClienteAbierto(false);
     setBusqueda('');
     setCarrito([]);
-    setPagos([{ medioPago: 'EFECTIVO', monto: '', conIva: false }]);
+    setPagos([pagoVacio()]);
     setError('');
     onCerrar();
   };
 
   const finalizarVenta = async () => {
     setError('');
+    if (pagos.some((p) => p.borrador !== p.monto)) {
+      return setError('Confirma los montos de los pagos (Tab o clic fuera del campo) antes de finalizar.');
+    }
     if (!bodegaId) return setError('Selecciona una bodega.');
     if (carrito.length === 0) return setError('Agrega al menos un producto al carrito.');
-    if (restante < -0.5) return setError('La suma de los pagos no puede superar el subtotal.');
+    if (restante < -0.5) return setError('La suma de los pagos supera el subtotal de la venta.');
     if (tipoDocumento && !numeroDocumento.trim()) {
       return setError('Escribe el número del documento, o elige "Sin documento".');
     }
@@ -215,12 +224,13 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
         items: carrito.map((i) => ({ productoId: i.productoId, espesorCm: i.espesorCm })),
         pagos: pagos
           .filter((p) => Number(p.monto) > 0)
-          .map((p) => ({ medioPago: p.medioPago, monto: Number(p.monto), conIva: clienteConFactura || p.conIva })),
+          .map((p) => ({ medioPago: p.medioPago, monto: Number(p.monto), conIva: conIvaEn(p) })),
       });
       onVentaCreada(res.data.superaLimite ? clienteSeleccionado?.nombre : undefined);
       limpiarYcerrar();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Ocurrió un error al registrar la venta.');
+      const mensaje = err.response?.data?.message;
+      setError(Array.isArray(mensaje) ? mensaje.join('. ') : mensaje || 'Ocurrió un error al registrar la venta.');
     } finally {
       setGuardando(false);
     }
@@ -308,7 +318,9 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
             <label className="block text-sm text-ink/60 mb-1">Cliente (opcional)</label>
             {clienteSeleccionado ? (
               <div className="border border-ink/15 rounded px-3 py-2 mb-1 flex items-center justify-between">
-                <span className="text-sm">{clienteSeleccionado.nombre} <span className="text-ink/40">({clienteSeleccionado.rut})</span></span>
+                <span className="text-sm">
+                  {clienteSeleccionado.nombre} <span className="text-ink/40">({clienteSeleccionado.rut})</span>
+                </span>
                 <button onClick={quitarCliente} className="text-ink/40 hover:text-danger text-xs">
                   Quitar
                 </button>
@@ -336,7 +348,9 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                         onMouseDown={() => seleccionarCliente(c.id)}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-ink/5 flex items-center justify-between"
                       >
-                        <span>{c.nombre} <span className="text-ink/40">({c.rut})</span></span>
+                        <span>
+                          {c.nombre} <span className="text-ink/40">({c.rut})</span>
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -344,13 +358,18 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
               </div>
             )}
             {clienteSeleccionado && (
-              <p className="text-xs text-ink/40 mb-4">
-                Crédito disponible: ${(clienteSeleccionado.limiteCredito - clienteSeleccionado.creditoUsado).toLocaleString('es-CL')}
-              </p>
+              <div className="mb-4">
+                <p className="text-base font-bold text-danger">
+                  Crédito disponible: {pesos(creditoDisponible)}
+                </p>
+                <p className="text-xs text-ink/50 font-mono">
+                  Límite {pesos(clienteSeleccionado.limiteCredito)} · Usado {pesos(clienteSeleccionado.creditoUsado)}
+                </p>
+              </div>
             )}
             {!clienteSeleccionado && <div className="mb-3" />}
 
-                       <label className="block text-sm text-ink/60 mb-1">Documento (opcional)</label>
+            <label className="block text-sm text-ink/60 mb-1">Documento (opcional)</label>
             <div className="flex gap-2 mb-4">
               <select
                 className="border border-ink/15 rounded px-2 py-2 text-sm w-40"
@@ -380,49 +399,78 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
               <p className="text-xs text-amber-dark mb-2">Cliente con factura: todos los pagos llevan IVA.</p>
             )}
             <div className="space-y-2 mb-2">
-              {pagos.map((p, idx) => (
-                <div key={idx} className="border border-ink/10 rounded p-2">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <select
-                      className="border border-ink/15 rounded px-2 py-1.5 text-sm flex-1"
-                      value={p.medioPago}
-                      onChange={(e) => actualizarPago(idx, 'medioPago', e.target.value)}
-                    >
-                      {Object.entries(etiquetasMedioPago).map(([valor, etiqueta]) => (
-                        <option key={valor} value={valor}>{etiqueta}</option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      className="border border-ink/15 rounded px-2 py-1.5 text-sm w-28"
-                      placeholder="Monto neto"
-                      value={p.monto}
-                      onChange={(e) => actualizarPago(idx, 'monto', e.target.value)}
-                    />
-                    {pagos.length > 1 && (
-                      <button onClick={() => quitarPago(idx)} className="text-danger/70 hover:text-danger">
-                        <Trash2 size={15} />
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between pl-1">
-                    <label className="flex items-center gap-1.5 text-xs text-ink/60 cursor-pointer">
+              {pagos.map((p, idx) => {
+                const sinConfirmar = p.borrador !== p.monto;
+                return (
+                  <div key={idx} className="border border-ink/10 rounded p-2">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <select
+                        className="border border-ink/15 rounded px-2 py-1.5 text-sm flex-1 min-w-0"
+                        value={p.medioPago}
+                        onChange={(e) => cambiarMedioPago(idx, e.target.value as MedioPago)}
+                      >
+                        {Object.entries(etiquetasMedioPago).map(([valor, etiqueta]) => (
+                          <option key={valor} value={valor}>{etiqueta}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        className="border border-ink/15 rounded px-2 py-1.5 text-sm w-32"
+                        placeholder="Monto neto"
+                        value={p.borrador}
+                        onChange={(e) => escribirMonto(idx, e.target.value)}
+                        onBlur={() => confirmarMonto(idx)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.currentTarget.blur();
+                        }}
+                      />
+                      {pagos.length > 1 && (
+                        <button onClick={() => quitarPago(idx)} className="text-danger/70 hover:text-danger">
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+
+                    <label className="flex items-center gap-1.5 text-xs text-ink/60 cursor-pointer pl-1">
                       <input
                         type="checkbox"
-                        checked={clienteConFactura || p.conIva}
+                        checked={conIvaEn(p)}
                         disabled={clienteConFactura}
-                        onChange={(e) => actualizarPagoIva(idx, e.target.checked)}
+                        onChange={(e) => cambiarIva(idx, e.target.checked)}
                       />
                       {clienteConFactura ? 'Incluye IVA (cliente con factura)' : 'Incluye IVA (19%)'}
                     </label>
-                      {(clienteConFactura || p.conIva) && Number(p.monto) > 0 && (
-                      <span className="text-xs text-ink/50 font-mono">
-                        = ${(Number(p.monto) + Math.round(Number(p.monto) * TASA_IVA)).toLocaleString('es-CL')}
-                      </span>
+
+                    {sinConfirmar ? (
+                      <p className="mt-2 text-xs text-ink/40 pl-1">
+                        Presiona Tab o haz clic fuera del campo para calcular.
+                      </p>
+                    ) : (
+                      montoNeto(p) > 0 && (
+                        <div className="mt-2 pt-2 border-t border-ink/10 flex items-end justify-between">
+                          {conIvaEn(p) ? (
+                            <>
+                              <div>
+                                <p className="text-xs text-ink/50">IVA (19%)</p>
+                                <p className="text-lg font-bold font-mono text-amber-dark">{pesos(ivaDe(p))}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs text-ink/50">Cobrar con IVA</p>
+                                <p className="text-xl font-bold font-mono text-ink">{pesos(cobrarDe(p))}</p>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-xs text-ink/50">Cobrar (sin IVA)</p>
+                              <p className="text-lg font-bold font-mono text-ink">{pesos(cobrarDe(p))}</p>
+                            </>
+                          )}
+                        </div>
+                      )
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <button
               onClick={agregarPago}
@@ -434,21 +482,27 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
             <div className="border-t border-ink/10 pt-3 mb-2 space-y-1">
               <div className="flex justify-between text-sm text-ink/60">
                 <span>Subtotal (neto)</span>
-                <span className="font-mono">${subtotal.toLocaleString('es-CL')}</span>
+                <span className="font-mono">{pesos(subtotal)}</span>
               </div>
               {ivaTotal > 0 && (
-                <div className="flex justify-between text-sm text-ink/60">
-                  <span>IVA</span>
-                  <span className="font-mono">${ivaTotal.toLocaleString('es-CL')}</span>
+                <div className="flex justify-between items-center text-ink">
+                  <span className="text-sm">IVA (19%)</span>
+                  <span className="font-mono text-lg font-bold text-amber-dark">{pesos(ivaTotal)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-sm font-medium text-ink">
-                <span>Total a cobrar</span>
-                <span className="font-mono">${totalConIva.toLocaleString('es-CL')}</span>
+              <div className="flex justify-between items-center text-ink">
+                <span className="text-sm font-medium">Total a cobrar</span>
+                <span className="font-mono text-xl font-bold">{pesos(totalConIva)}</span>
               </div>
-              <div className={`flex justify-between text-sm font-medium pt-1 ${restante > 0.5 ? 'text-amber-dark' : restante < -0.5 ? 'text-danger' : 'text-teal'}`}>
-                <span>{restante > 0.5 ? 'Quedará pendiente' : restante < -0.5 ? 'Sobra (no permitido)' : 'Cubierto'}</span>
-                <span className="font-mono">${Math.abs(restante).toLocaleString('es-CL')}</span>
+              <div
+                className={`flex justify-between text-sm font-medium pt-1 ${
+                  restante > 0.5 ? 'text-amber-dark' : restante < -0.5 ? 'text-danger' : 'text-teal'
+                }`}
+              >
+                <span>
+                  {restante > 0.5 ? 'Quedará pendiente (neto)' : restante < -0.5 ? 'Sobra (no permitido)' : 'Cubierto (neto)'}
+                </span>
+                <span className="font-mono">{pesos(Math.abs(restante))}</span>
               </div>
             </div>
 
@@ -457,8 +511,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                 <p className="font-medium">No se puede hacer la venta</p>
                 <p>{clienteSeleccionado.nombre} está en su límite de crédito.</p>
                 <p className="text-xs mt-1 font-mono">
-                  Disponible ${Math.max(0, creditoDisponible).toLocaleString('es-CL')} · Esta venta necesita $
-                  {montoQueAfectaCredito.toLocaleString('es-CL')}
+                  Disponible {pesos(Math.max(0, creditoDisponible))} · Esta venta necesita {pesos(montoQueAfectaCredito)}
                 </p>
                 <p className="text-xs mt-1">Baja el monto a crédito o págalo con otro medio.</p>
               </div>
