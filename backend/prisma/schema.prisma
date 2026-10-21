@@ -99,6 +99,7 @@ model Usuario {
   creadoEn  DateTime @default(now())
 
   ventas    Venta[]
+  despachos Despacho[]
 }
 
 enum MedioPago {
@@ -127,6 +128,7 @@ model Venta {
   usuario    Usuario?    @relation(fields: [usuarioId], references: [id])
   items      VentaItem[]
   pagos      Pago[]
+  despachos  Despacho[]
 }
 
 model VentaItem {
@@ -135,11 +137,35 @@ model VentaItem {
   productoId     Int
   espesorCm      Float
   cantidad       Int      @default(1)
+  cantidadDespachada Int  @default(0)
   precioUnitario Float
   subtotal       Float
 
   venta          Venta    @relation(fields: [ventaId], references: [id])
   producto       Producto @relation(fields: [productoId], references: [id])
+  despachoItems  DespachoItem[]
+}
+
+model Despacho {
+  id          Int      @id @default(autoincrement())
+  ventaId     Int
+  usuarioId   Int?
+  observacion String?
+  creadoEn    DateTime @default(now())
+
+  venta       Venta    @relation(fields: [ventaId], references: [id])
+  usuario     Usuario? @relation(fields: [usuarioId], references: [id])
+  items       DespachoItem[]
+}
+
+model DespachoItem {
+  id          Int       @id @default(autoincrement())
+  despachoId  Int
+  ventaItemId Int
+  cantidad    Int
+
+  despacho    Despacho  @relation(fields: [despachoId], references: [id])
+  ventaItem   VentaItem @relation(fields: [ventaItemId], references: [id])
 }
 
 model Pago {

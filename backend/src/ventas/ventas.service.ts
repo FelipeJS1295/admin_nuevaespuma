@@ -340,6 +340,8 @@ export class VentasService {
 
       // 3. Borrar pagos, ítems y la venta
       await tx.pago.deleteMany({ where: { ventaId: id } });
+      await tx.despachoItem.deleteMany({ where: { despacho: { ventaId: id } } });
+      await tx.despacho.deleteMany({ where: { ventaId: id } });
       await tx.ventaItem.deleteMany({ where: { ventaId: id } });
       await tx.venta.delete({ where: { id } });
 

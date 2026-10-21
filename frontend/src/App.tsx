@@ -12,6 +12,7 @@ import Usuarios from './pages/Usuarios';
 import Ventas from './pages/Ventas';
 import ClienteDetalle from './pages/ClienteDetalle';
 import Informes from './pages/Informes';
+import Despacho from './pages/Despacho';
 
 function App() {
   return (
@@ -44,6 +45,14 @@ function App() {
               element={
                 <RutaProtegida rolesPermitidos={['ADMIN_MASTER', 'ADMIN', 'VENTAS']}>
                   <Ventas />
+                </RutaProtegida>
+              }
+            />
+            <Route
+              path="/despacho"
+              element={
+                <RutaProtegida rolesPermitidos={['ADMIN_MASTER', 'ADMIN', 'DESPACHO']}>
+                  <Despacho />
                 </RutaProtegida>
               }
             />

@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Warehouse, Package, Boxes, Users, LayoutDashboard, LogOut, UserCog, ShoppingCart, BarChart3 } from 'lucide-react';
+import { Warehouse, Package, Boxes, Users, LayoutDashboard, LogOut, UserCog, ShoppingCart, BarChart3, Truck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const enlaces = [
@@ -8,6 +8,7 @@ const enlaces = [
   { path: '/productos', label: 'Productos', icon: Package, roles: ['ADMIN_MASTER', 'ADMIN'] },
   { path: '/stock', label: 'Stock', icon: Boxes, roles: ['ADMIN_MASTER', 'ADMIN', 'PRODUCCION'] },
   { path: '/ventas', label: 'Ventas', icon: ShoppingCart, roles: ['ADMIN_MASTER', 'ADMIN', 'VENTAS'] },
+  { path: '/despacho', label: 'Despacho', icon: Truck, roles: ['ADMIN_MASTER', 'ADMIN', 'DESPACHO'] },
   { path: '/clientes', label: 'Clientes', icon: Users, roles: ['ADMIN_MASTER', 'ADMIN', 'VENTAS'] },
   { path: '/informes', label: 'Informes', icon: BarChart3, roles: ['ADMIN_MASTER', 'ADMIN'] },
   { path: '/usuarios', label: 'Usuarios', icon: UserCog, roles: ['ADMIN_MASTER', 'ADMIN'] },
