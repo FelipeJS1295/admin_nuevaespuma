@@ -62,7 +62,7 @@ export class InformesService {
           cmVendidos: 0,
           montoNeto: 0,
         };
-        actual.cmVendidos += item.espesorCm;
+        actual.cmVendidos += item.espesorCm * item.cantidad;
         actual.montoNeto += item.subtotal;
         porProductoMap.set(item.productoId, actual);
       }
@@ -209,7 +209,7 @@ export class InformesService {
     for (const item of itemsVendidos) {
       const densidad = item.producto.densidad;
       const actual = densidadesMap.get(densidad) ?? { densidad, cmVendidos: 0, montoNeto: 0 };
-      actual.cmVendidos += item.espesorCm;
+      actual.cmVendidos += item.espesorCm * item.cantidad;
       actual.montoNeto += item.subtotal;
       densidadesMap.set(densidad, actual);
     }

@@ -28,6 +28,7 @@ export interface VentaDeCliente {
   items: {
     id: number;
     espesorCm: number;
+    cantidad: number;
     subtotal: number;
     producto: { id: number; nombre: string; sku: string };
   }[];

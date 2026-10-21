@@ -13,6 +13,7 @@ interface ItemCarrito {
   densidad: number;
   precioPorCm: number;
   espesorCm: number;
+  cantidad: number;
 }
 
 interface PagoForm {
@@ -135,7 +136,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   );
 
   const subtotal = useMemo(
-    () => carrito.reduce((acc, i) => acc + i.precioPorCm * i.espesorCm, 0),
+    () => carrito.reduce((acc, i) => acc + i.precioPorCm * i.espesorCm * i.cantidad, 0),
     [carrito],
   );
 
@@ -201,12 +202,16 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
     if (yaExiste) return;
     setCarrito([
       ...carrito,
-      { productoId: producto.id, nombre: producto.nombre, densidad: producto.densidad, precioPorCm: producto.precio, espesorCm: 1 },
+      { productoId: producto.id, nombre: producto.nombre, densidad: producto.densidad, precioPorCm: producto.precio, espesorCm: 1, cantidad: 1 },
     ]);
   };
 
   const actualizarEspesor = (productoId: number, espesorCm: number) => {
     setCarrito(carrito.map((i) => (i.productoId === productoId ? { ...i, espesorCm } : i)));
+  };
+
+  const actualizarCantidad = (productoId: number, cantidad: number) => {
+    setCarrito(carrito.map((i) => (i.productoId === productoId ? { ...i, cantidad } : i)));
   };
 
   const quitarDelCarrito = (productoId: number) => {
@@ -286,7 +291,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
         tipoDocumento: tipoDocumento || undefined,
         numeroDocumento: tipoDocumento ? numeroDocumento.trim() : undefined,
         fechaVencimiento: montoQueAfectaCredito > 0 && clienteId ? fechaVencimiento : undefined,
-        items: carrito.map((i) => ({ productoId: i.productoId, espesorCm: i.espesorCm })),
+        items: carrito.map((i) => ({ productoId: i.productoId, espesorCm: i.espesorCm, cantidad: i.cantidad })),
         pagos: pagos
           .filter((p) => Number(p.monto) > 0)
           .map((p) => ({ medioPago: p.medioPago, monto: Number(p.monto), conIva: conIvaEn(p) })),
@@ -371,9 +376,18 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                       min={0.1}
                       step={0.1}
                     />
-                    <span className="text-xs text-ink/50">cm</span>
+                    <span className="text-xs text-ink/50">cm ×</span>
+                    <input
+                      type="number"
+                      className="border border-ink/15 rounded px-2 py-1 w-20 text-sm"
+                      value={i.cantidad}
+                      onChange={(e) => actualizarCantidad(i.productoId, Math.max(1, Math.floor(Number(e.target.value)) || 1))}
+                      min={1}
+                      step={1}
+                    />
+                    <span className="text-xs text-ink/50">un.</span>
                     <span className="ml-auto font-mono text-sm">
-                      ${(i.precioPorCm * i.espesorCm).toLocaleString('es-CL')}
+                      ${(i.precioPorCm * i.espesorCm * i.cantidad).toLocaleString('es-CL')}
                     </span>
                   </div>
                 </div>

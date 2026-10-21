@@ -358,7 +358,7 @@ export default function Ventas() {
                             <div className="space-y-1">
                               {v.items.map((i) => (
                                 <div key={i.id} className="flex justify-between text-sm">
-                                  <span>{i.producto.nombre} · {i.espesorCm}cm</span>
+                                  <span>{i.cantidad > 1 ? `${i.cantidad} × ` : ''}{i.producto.nombre} · {i.espesorCm}cm</span>
                                   <span className="font-mono">${i.subtotal.toLocaleString('es-CL')}</span>
                                 </div>
                               ))}

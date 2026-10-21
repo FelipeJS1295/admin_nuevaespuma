@@ -4,6 +4,7 @@ export interface VentaItem {
   id: number;
   productoId: number;
   espesorCm: number;
+  cantidad: number;
   precioUnitario: number;
   subtotal: number;
   producto: {

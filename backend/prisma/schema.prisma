@@ -134,6 +134,7 @@ model VentaItem {
   ventaId        Int
   productoId     Int
   espesorCm      Float
+  cantidad       Int      @default(1)
   precioUnitario Float
   subtotal       Float
 

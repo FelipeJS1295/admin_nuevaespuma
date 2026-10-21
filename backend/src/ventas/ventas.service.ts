@@ -34,10 +34,12 @@ export class VentasService {
     const itemsCalculados = items.map((item) => {
       const producto = productos.find((p) => p.id === item.productoId);
       if (!producto) throw new NotFoundException(`Producto con id ${item.productoId} no encontrado`);
-      const subtotal = producto.precio * item.espesorCm;
+      const cantidad = item.cantidad ?? 1;
+      const subtotal = producto.precio * item.espesorCm * cantidad;
       return {
         productoId: producto.id,
         espesorCm: item.espesorCm,
+        cantidad,
         precioUnitario: producto.precio,
         subtotal,
       };
@@ -169,8 +171,8 @@ export class VentasService {
       for (const item of itemsCalculados) {
         await tx.stock.upsert({
           where: { bodegaId_productoId: { bodegaId, productoId: item.productoId } },
-          update: { cantidad: { decrement: item.espesorCm } },
-          create: { bodegaId, productoId: item.productoId, cantidad: -item.espesorCm },
+          update: { cantidad: { decrement: item.espesorCm * item.cantidad } },
+          create: { bodegaId, productoId: item.productoId, cantidad: -(item.espesorCm * item.cantidad) },
         });
 
         await tx.movimientoStock.create({
@@ -178,7 +180,7 @@ export class VentasService {
             bodegaId,
             productoId: item.productoId,
             tipo: TipoMovimiento.VENTA,
-            cantidad: -item.espesorCm,
+            cantidad: -(item.espesorCm * item.cantidad),
             observacion: `Venta #${venta.id}`,
           },
         });
@@ -326,8 +328,8 @@ export class VentasService {
       for (const item of venta.items) {
         await tx.stock.upsert({
           where: { bodegaId_productoId: { bodegaId: venta.bodegaId, productoId: item.productoId } },
-          update: { cantidad: { increment: item.espesorCm } },
-          create: { bodegaId: venta.bodegaId, productoId: item.productoId, cantidad: item.espesorCm },
+          update: { cantidad: { increment: item.espesorCm * item.cantidad } },
+          create: { bodegaId: venta.bodegaId, productoId: item.productoId, cantidad: item.espesorCm * item.cantidad },
         });
       }
 
