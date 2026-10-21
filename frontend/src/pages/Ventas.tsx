@@ -5,7 +5,7 @@ import type { Venta } from '../types/venta';
 import VentaModal from '../components/VentaModal';
 import PagarSaldoModal from '../components/PagarSaldoModal';
 import RegistrarDocumentoModal from '../components/RegistrarDocumentoModal';
-import { Plus, ChevronDown, ChevronUp, AlertTriangle, CircleDollarSign, Search, X, Trash2 } from 'lucide-react';
+import { Layers, Plus, ChevronDown, ChevronUp, AlertTriangle, CircleDollarSign, Search, X, Trash2 } from 'lucide-react';
 
 const etiquetasMedioPago: Record<string, string> = {
   EFECTIVO: 'Efectivo',
@@ -48,6 +48,9 @@ export default function Ventas() {
   const [cliente, setCliente] = useState('');
   const [documento, setDocumento] = useState('');
   const [estado, setEstado] = useState<'todas' | 'pendientes' | 'pagadas'>('todas');
+
+  // Vista de la lista: ventas o resumen de centímetros por densidad
+  const [vista, setVista] = useState<'ventas' | 'densidad'>('ventas');
 
   // Evita que una respuesta lenta pise a una más reciente
   const ultimaPeticion = useRef(0);
@@ -116,6 +119,24 @@ export default function Ventas() {
   const totalCobrado = ventas.reduce((acc, v) => acc + v.total, 0);
   const totalPendiente = ventas.reduce((acc, v) => acc + v.saldoPendiente, 0);
 
+  // Resumen de centímetros por densidad (sobre las ventas filtradas)
+  const resumenDensidad = (() => {
+    const mapa = new Map<number, { densidad: number; piezas: number; cm: number; monto: number }>();
+    for (const v of ventas) {
+      for (const i of v.items) {
+        const d = i.producto.densidad;
+        const cant = i.cantidad ?? 1;
+        const actual = mapa.get(d) ?? { densidad: d, piezas: 0, cm: 0, monto: 0 };
+        actual.piezas += cant;
+        actual.cm += i.espesorCm * cant;
+        actual.monto += i.subtotal;
+        mapa.set(d, actual);
+      }
+    }
+    return Array.from(mapa.values()).sort((a, b) => a.densidad - b.densidad);
+  })();
+  const totalCmDensidad = resumenDensidad.reduce((acc, d) => acc + d.cm, 0);
+
   const alternarExpandida = (id: number) => setVentaExpandida(ventaExpandida === id ? null : id);
 
   return (
@@ -125,6 +146,16 @@ export default function Ventas() {
           <h1 className="text-2xl font-semibold text-ink mb-1">Ventas</h1>
           <p className="text-ink/50">{esSoloHoy ? 'Ventas registradas hoy' : 'Resultados según los filtros aplicados'}</p>
         </div>
+        <div className="flex items-center gap-2">
+        <button
+          onClick={() => setVista(vista === 'densidad' ? 'ventas' : 'densidad')}
+          className={`flex items-center gap-1.5 font-medium px-4 py-2 rounded border transition whitespace-nowrap ${
+            vista === 'densidad' ? 'bg-graphite text-paper border-graphite' : 'border-ink/20 text-ink/70 hover:bg-ink/5'
+          }`}
+        >
+          <Layers size={18} />
+          Centímetros por densidad
+        </button>
         <button
           onClick={() => setModalAbierto(true)}
           className="flex items-center gap-1.5 bg-amber text-graphite font-medium px-4 py-2 rounded hover:bg-amber-dark transition whitespace-nowrap"
@@ -132,6 +163,7 @@ export default function Ventas() {
           <Plus size={18} />
           Nueva venta
         </button>
+        </div>
       </div>
 
       {aviso && (
@@ -257,6 +289,54 @@ export default function Ventas() {
 
       {cargandoInicial ? (
         <p className="text-ink/50">Cargando...</p>
+      ) : vista === 'densidad' ? (
+        <div className="bg-white border border-ink/10 rounded overflow-hidden">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="text-left border-b border-ink/10 bg-ink/[0.02] text-sm text-ink/60">
+                <th className="py-2.5 px-4 font-medium">Densidad</th>
+                <th className="py-2.5 px-4 font-medium text-right">Piezas</th>
+                <th className="py-2.5 px-4 font-medium text-right">Centímetros vendidos</th>
+                <th className="py-2.5 px-4 font-medium text-right">Monto neto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {resumenDensidad.map((d) => (
+                <tr key={d.densidad} className="border-b border-ink/5 last:border-0">
+                  <td className="py-2.5 px-4 font-mono">D{d.densidad}</td>
+                  <td className="py-2.5 px-4 text-right font-mono">{d.piezas.toLocaleString('es-CL')}</td>
+                  <td className="py-2.5 px-4 text-right font-mono">
+                    {d.cm.toLocaleString('es-CL', { maximumFractionDigits: 1 })} cm
+                  </td>
+                  <td className="py-2.5 px-4 text-right font-mono">${d.monto.toLocaleString('es-CL')}</td>
+                </tr>
+              ))}
+              {resumenDensidad.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-8 text-center text-ink/40">
+                    No hay ventas en este período.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {resumenDensidad.length > 0 && (
+              <tfoot>
+                <tr className="border-t border-ink/10 bg-ink/[0.02] font-medium">
+                  <td className="py-2.5 px-4">Total</td>
+                  <td className="py-2.5 px-4 text-right font-mono">
+                    {resumenDensidad.reduce((a, d) => a + d.piezas, 0).toLocaleString('es-CL')}
+                  </td>
+                  <td className="py-2.5 px-4 text-right font-mono">
+                    {totalCmDensidad.toLocaleString('es-CL', { maximumFractionDigits: 1 })} cm
+                  </td>
+                  <td className="py-2.5 px-4 text-right font-mono">
+                    ${resumenDensidad.reduce((a, d) => a + d.monto, 0).toLocaleString('es-CL')}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
       ) : (
         <div className="bg-white border border-ink/10 rounded overflow-hidden">
           <table className="w-full border-collapse">
