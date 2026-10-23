@@ -33,11 +33,13 @@ interface EstadoCredito {
   proximoVencimiento: string | null;
 }
 
-type Metodo = 'EFECTIVO' | 'TRANSFERENCIA' | 'DEBITO' | 'MIXTO' | 'PENDIENTE';
+type Metodo = 'EFECTIVO' | 'TRANSFERENCIA' | 'TRANSFERENCIA_SIN_IVA' | 'DEBITO' | 'MIXTO' | 'PENDIENTE';
+type RestoMixto = 'TRANSFERENCIA' | 'TRANSFERENCIA_SIN_IVA' | 'DEBITO';
 
 const metodos: { id: Metodo; etiqueta: string; Icono: typeof Banknote }[] = [
   { id: 'EFECTIVO', etiqueta: 'Efectivo', Icono: Banknote },
   { id: 'TRANSFERENCIA', etiqueta: 'Transferencia', Icono: Landmark },
+  { id: 'TRANSFERENCIA_SIN_IVA', etiqueta: 'Transf. sin IVA', Icono: Landmark },
   { id: 'DEBITO', etiqueta: 'Débito', Icono: CreditCard },
   { id: 'MIXTO', etiqueta: 'Mixto', Icono: Shuffle },
   { id: 'PENDIENTE', etiqueta: 'Pendiente', Icono: Clock },
@@ -87,7 +89,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
   const [metodo, setMetodo] = useState<Metodo>('EFECTIVO');
   const [efectivoMixto, setEfectivoMixto] = useState('');
-  const [restoMixto, setRestoMixto] = useState<'TRANSFERENCIA' | 'DEBITO'>('TRANSFERENCIA');
+  const [restoMixto, setRestoMixto] = useState<RestoMixto>('TRANSFERENCIA');
   const [recibido, setRecibido] = useState('');
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -170,12 +172,17 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
         return [crear('EFECTIVO', subtotal, false)];
       case 'TRANSFERENCIA':
         return [crear('TRANSFERENCIA', subtotal, true)];
+      case 'TRANSFERENCIA_SIN_IVA':
+        return [crear('TRANSFERENCIA', subtotal, false)];
       case 'DEBITO':
         return [crear('DEBITO', subtotal, true)];
       case 'MIXTO': {
         const lista: PagoForm[] = [];
         if (efectivoMixtoNum > 0) lista.push(crear('EFECTIVO', efectivoMixtoNum, false));
-        if (subtotal - efectivoMixtoNum > 0) lista.push(crear(restoMixto, subtotal - efectivoMixtoNum, true));
+        if (subtotal - efectivoMixtoNum > 0) {
+          const sinIva = restoMixto === 'TRANSFERENCIA_SIN_IVA';
+          lista.push(crear(sinIva ? 'TRANSFERENCIA' : restoMixto, subtotal - efectivoMixtoNum, !sinIva));
+        }
         return lista;
       }
       default:
@@ -504,7 +511,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
             {clienteConFactura && (
               <p className="text-xs text-amber-dark mb-2">Cliente con factura: todos los pagos llevan IVA.</p>
             )}
-            <div className="grid grid-cols-5 gap-1.5 mb-3">
+            <div className="grid grid-cols-3 gap-1.5 mb-3">
               {metodos.map(({ id, etiqueta, Icono }) => (
                 <button
                   key={id}
@@ -550,6 +557,14 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
               </p>
             )}
 
+            {metodo === 'TRANSFERENCIA_SIN_IVA' && (
+              <p className="text-xs text-ink/50 bg-ink/[0.03] rounded p-3 mb-3">
+                {clienteConFactura
+                  ? 'Transferencia con IVA (cliente con factura).'
+                  : 'Transferencia sin IVA: se cobra solo el valor neto.'}
+              </p>
+            )}
+
             {metodo === 'MIXTO' && (
               <div className="bg-ink/[0.03] rounded p-3 mb-3 space-y-2">
                 <div>
@@ -563,21 +578,22 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-ink/60 mb-1">Método para el monto restante (con IVA)</label>
+                  <label className="block text-xs text-ink/60 mb-1">Método para el monto restante</label>
                   <select
                     className="border border-ink/15 rounded px-3 py-2 w-full"
                     value={restoMixto}
-                    onChange={(e) => setRestoMixto(e.target.value as 'TRANSFERENCIA' | 'DEBITO')}
+                    onChange={(e) => setRestoMixto(e.target.value as RestoMixto)}
                   >
-                    <option value="TRANSFERENCIA">Transferencia</option>
+                    <option value="TRANSFERENCIA">Transferencia (con IVA)</option>
+                    <option value="TRANSFERENCIA_SIN_IVA">Transferencia sin IVA</option>
                     <option value="DEBITO">Débito</option>
                   </select>
                 </div>
                 <div className="bg-white border border-ink/10 rounded p-2.5 text-sm space-y-0.5">
                   <p>Efectivo (sin IVA): <span className="font-mono">{pesos(efectivoMixtoNum)}</span></p>
                   <p>Restante: <span className="font-mono">{pesos(subtotal - efectivoMixtoNum)}</span></p>
-                  <p>IVA (19% del restante): <span className="font-mono">{pesos(ivaTotal)}</span></p>
-                  <p>Total restante con IVA: <span className="font-mono">{pesos(subtotal - efectivoMixtoNum + ivaTotal)}</span></p>
+                  <p>IVA (19%): <span className="font-mono">{pesos(ivaTotal)}</span></p>
+                  <p>Total restante: <span className="font-mono">{pesos(subtotal - efectivoMixtoNum + ivaTotal)}</span></p>
                 </div>
               </div>
             )}
