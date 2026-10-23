@@ -3,7 +3,8 @@ import { api } from '../api/client';
 import type { Bodega } from '../types/bodega';
 import type { Producto } from '../types/producto';
 import type { Cliente } from '../types/cliente';
-import type { MedioPago } from '../types/venta';
+import type { MedioPago, Venta } from '../types/venta';
+import { imprimirTickets, ticketCliente, ticketDespacho } from '../utils/tickets';
 import Modal from './Modal';
 import { Plus, Trash2, Search, Banknote, Landmark, CreditCard, Shuffle, Clock } from 'lucide-react';
 
@@ -338,6 +339,17 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
           .filter((p) => Number(p.monto) > 0)
           .map((p) => ({ medioPago: p.medioPago, monto: Number(p.monto), conIva: conIvaEn(p) })),
       });
+      // Imprime el comprobante del cliente (con montos) y la copia de despacho (sin montos)
+      try {
+        const completa = await api.get<Venta>(`/ventas/${res.data.id}`);
+        const recibidoNum = metodo === 'EFECTIVO' ? Number(recibido) || 0 : 0;
+        imprimirTickets([
+          ticketCliente(completa.data, recibidoNum > 0 ? { recibido: recibidoNum, vuelto } : undefined),
+          ticketDespacho(completa.data),
+        ]);
+      } catch {
+        // Si falla la impresión, la venta igual quedó registrada
+      }
       onVentaCreada(res.data.superaLimite ? clienteSeleccionado?.nombre : undefined);
       limpiarYcerrar();
     } catch (err: any) {
