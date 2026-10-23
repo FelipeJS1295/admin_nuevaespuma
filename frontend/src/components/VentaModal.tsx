@@ -34,7 +34,25 @@ interface EstadoCredito {
 }
 
 type Metodo = 'EFECTIVO' | 'TRANSFERENCIA' | 'TRANSFERENCIA_SIN_IVA' | 'DEBITO' | 'MIXTO' | 'PENDIENTE';
-type RestoMixto = 'TRANSFERENCIA' | 'TRANSFERENCIA_SIN_IVA' | 'DEBITO';
+type MetodoMixto = 'EFECTIVO' | 'DEBITO' | 'TRANSFERENCIA' | 'TRANSFERENCIA_SIN_IVA';
+type RestoMixto = Exclude<MetodoMixto, 'EFECTIVO'>;
+
+const etiquetasMixto: Record<MetodoMixto, string> = {
+  EFECTIVO: 'Efectivo (sin IVA)',
+  DEBITO: 'Débito (con IVA)',
+  TRANSFERENCIA: 'Transferencia (con IVA)',
+  TRANSFERENCIA_SIN_IVA: 'Transferencia sin IVA',
+};
+
+// Cada opción del pago mixto se traduce a medio de pago + si lleva IVA
+const datosMixto = (m: MetodoMixto): { medioPago: MedioPago; conIva: boolean } =>
+  m === 'EFECTIVO'
+    ? { medioPago: 'EFECTIVO', conIva: false }
+    : m === 'DEBITO'
+      ? { medioPago: 'DEBITO', conIva: true }
+      : m === 'TRANSFERENCIA'
+        ? { medioPago: 'TRANSFERENCIA', conIva: true }
+        : { medioPago: 'TRANSFERENCIA', conIva: false };
 
 const metodos: { id: Metodo; etiqueta: string; Icono: typeof Banknote }[] = [
   { id: 'EFECTIVO', etiqueta: 'Efectivo', Icono: Banknote },
@@ -88,6 +106,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   const [busqueda, setBusqueda] = useState('');
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
   const [metodo, setMetodo] = useState<Metodo>('EFECTIVO');
+  const [primeroMixto, setPrimeroMixto] = useState<MetodoMixto>('EFECTIVO');
   const [efectivoMixto, setEfectivoMixto] = useState('');
   const [restoMixto, setRestoMixto] = useState<RestoMixto>('TRANSFERENCIA');
   const [recibido, setRecibido] = useState('');
@@ -178,11 +197,10 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
         return [crear('DEBITO', subtotal, true)];
       case 'MIXTO': {
         const lista: PagoForm[] = [];
-        if (efectivoMixtoNum > 0) lista.push(crear('EFECTIVO', efectivoMixtoNum, false));
-        if (subtotal - efectivoMixtoNum > 0) {
-          const sinIva = restoMixto === 'TRANSFERENCIA_SIN_IVA';
-          lista.push(crear(sinIva ? 'TRANSFERENCIA' : restoMixto, subtotal - efectivoMixtoNum, !sinIva));
-        }
+        const primero = datosMixto(primeroMixto);
+        const resto = datosMixto(restoMixto);
+        if (efectivoMixtoNum > 0) lista.push(crear(primero.medioPago, efectivoMixtoNum, primero.conIva));
+        if (subtotal - efectivoMixtoNum > 0) lista.push(crear(resto.medioPago, subtotal - efectivoMixtoNum, resto.conIva));
         return lista;
       }
       default:
@@ -273,6 +291,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
     setMetodo('EFECTIVO');
     setEfectivoMixto('');
     setRestoMixto('TRANSFERENCIA');
+    setPrimeroMixto('EFECTIVO');
     setRecibido('');
     setError('');
     onCerrar();
@@ -286,7 +305,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
       }
     }
     if (metodo === 'MIXTO' && (Number(efectivoMixto) || 0) > subtotal + 0.5) {
-      return setError('El monto en efectivo no puede ser mayor al total.');
+      return setError('El monto del primer pago no puede ser mayor al total.');
     }
     if (!bodegaId) return setError('Selecciona una bodega.');
     if (carrito.length === 0) return setError('Agrega al menos un producto al carrito.');
@@ -568,7 +587,26 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
             {metodo === 'MIXTO' && (
               <div className="bg-ink/[0.03] rounded p-3 mb-3 space-y-2">
                 <div>
-                  <label className="block text-xs text-ink/60 mb-1">Monto en efectivo (sin IVA)</label>
+                  <label className="block text-xs text-ink/60 mb-1">Primer pago</label>
+                  <select
+                    className="border border-ink/15 rounded px-3 py-2 w-full"
+                    value={primeroMixto}
+                    onChange={(e) => {
+                      const nuevo = e.target.value as MetodoMixto;
+                      setPrimeroMixto(nuevo);
+                      // El segundo pago no puede ser igual al primero
+                      if (nuevo === restoMixto) {
+                        setRestoMixto(nuevo === 'TRANSFERENCIA' ? 'TRANSFERENCIA_SIN_IVA' : 'TRANSFERENCIA');
+                      }
+                    }}
+                  >
+                    {(Object.keys(etiquetasMixto) as MetodoMixto[]).map((m) => (
+                      <option key={m} value={m}>{etiquetasMixto[m]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-ink/60 mb-1">Monto del primer pago (neto)</label>
                   <input
                     type="number"
                     className="border border-ink/15 rounded px-3 py-2 w-full"
@@ -578,22 +616,30 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-ink/60 mb-1">Método para el monto restante</label>
+                  <label className="block text-xs text-ink/60 mb-1">Segundo pago (por el monto restante)</label>
                   <select
                     className="border border-ink/15 rounded px-3 py-2 w-full"
                     value={restoMixto}
                     onChange={(e) => setRestoMixto(e.target.value as RestoMixto)}
                   >
-                    <option value="TRANSFERENCIA">Transferencia (con IVA)</option>
-                    <option value="TRANSFERENCIA_SIN_IVA">Transferencia sin IVA</option>
-                    <option value="DEBITO">Débito</option>
+                    {(Object.keys(etiquetasMixto) as MetodoMixto[])
+                      .filter((m): m is RestoMixto => m !== 'EFECTIVO' && m !== primeroMixto)
+                      .map((m) => (
+                        <option key={m} value={m}>{etiquetasMixto[m]}</option>
+                      ))}
                   </select>
                 </div>
                 <div className="bg-white border border-ink/10 rounded p-2.5 text-sm space-y-0.5">
-                  <p>Efectivo (sin IVA): <span className="font-mono">{pesos(efectivoMixtoNum)}</span></p>
-                  <p>Restante: <span className="font-mono">{pesos(subtotal - efectivoMixtoNum)}</span></p>
+                  <p>
+                    Primer pago ({etiquetasMixto[primeroMixto]}):{' '}
+                    <span className="font-mono">{pesos(efectivoMixtoNum)}</span>
+                  </p>
+                  <p>
+                    Segundo pago ({etiquetasMixto[restoMixto]}):{' '}
+                    <span className="font-mono">{pesos(subtotal - efectivoMixtoNum)}</span>
+                  </p>
                   <p>IVA (19%): <span className="font-mono">{pesos(ivaTotal)}</span></p>
-                  <p>Total restante: <span className="font-mono">{pesos(subtotal - efectivoMixtoNum + ivaTotal)}</span></p>
+                  <p className="font-medium">Total a cobrar: <span className="font-mono">{pesos(totalConIva)}</span></p>
                 </div>
               </div>
             )}
