@@ -629,17 +629,33 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                       ))}
                   </select>
                 </div>
-                <div className="bg-white border border-ink/10 rounded p-2.5 text-sm space-y-0.5">
-                  <p>
-                    Primer pago ({etiquetasMixto[primeroMixto]}):{' '}
-                    <span className="font-mono">{pesos(efectivoMixtoNum)}</span>
-                  </p>
-                  <p>
-                    Segundo pago ({etiquetasMixto[restoMixto]}):{' '}
-                    <span className="font-mono">{pesos(subtotal - efectivoMixtoNum)}</span>
-                  </p>
-                  <p>IVA (19%): <span className="font-mono">{pesos(ivaTotal)}</span></p>
-                  <p className="font-medium">Total a cobrar: <span className="font-mono">{pesos(totalConIva)}</span></p>
+                <div className="bg-white border border-ink/10 rounded p-2.5 text-sm space-y-2">
+                  {[
+                    { titulo: 'Primer pago', tipo: primeroMixto, neto: efectivoMixtoNum },
+                    { titulo: 'Segundo pago', tipo: restoMixto, neto: subtotal - efectivoMixtoNum },
+                  ].map((linea) => {
+                    const conIva = clienteConFactura || datosMixto(linea.tipo).conIva;
+                    const iva = conIva ? Math.round(linea.neto * TASA_IVA) : 0;
+                    return (
+                      <div key={linea.titulo} className="flex items-end justify-between border-b border-ink/5 pb-2 last:border-0 last:pb-0">
+                        <div>
+                          <p className="text-xs text-ink/50">{linea.titulo} · {etiquetasMixto[linea.tipo]}</p>
+                          <p className="font-mono text-ink/70">
+                            Neto {pesos(linea.neto)}
+                            {conIva && <span className="text-amber-dark"> + IVA {pesos(iva)}</span>}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-ink/50">Cobrar{conIva ? ' con IVA' : ''}</p>
+                          <p className="text-lg font-bold font-mono">{pesos(linea.neto + iva)}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-sm font-medium">Total a cobrar</span>
+                    <span className="text-xl font-bold font-mono">{pesos(totalConIva)}</span>
+                  </div>
                 </div>
               </div>
             )}
