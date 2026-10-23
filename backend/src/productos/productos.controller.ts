@@ -28,7 +28,9 @@ export class ProductosController {
     return this.productosService.create(createProductoDto);
   }
 
+  // El listado también lo necesita VENTAS para crear ventas (este @Roles reemplaza al de la clase)
   @Get()
+  @Roles(Rol.ADMIN_MASTER, Rol.ADMIN, Rol.VENTAS)
   findAll() {
     return this.productosService.findAll();
   }
