@@ -21,6 +21,7 @@ interface PagoForm {
   monto: string; // monto neto ya confirmado: es el que usan todos los cálculos
   borrador: string; // lo que se está escribiendo; pasa a "monto" al salir del campo
   conIva: boolean;
+  recibido: string; // dinero recibido en efectivo (solo para calcular el vuelto)
 }
 
 interface EstadoCredito {
@@ -33,7 +34,7 @@ interface EstadoCredito {
   proximoVencimiento: string | null;
 }
 
-const pagoVacio = (): PagoForm => ({ medioPago: 'EFECTIVO', monto: '', borrador: '', conIva: false });
+const pagoVacio = (): PagoForm => ({ medioPago: 'EFECTIVO', monto: '', borrador: '', conIva: false, recibido: '' });
 
 const etiquetasMedioPago: Record<MedioPago, string> = {
   EFECTIVO: 'Efectivo',
@@ -260,8 +261,18 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
     onCerrar();
   };
 
+  const cambiarRecibido = (index: number, recibido: string) => {
+    setPagos((prev) => prev.map((p, i) => (i === index ? { ...p, recibido } : p)));
+  };
+
   const finalizarVenta = async () => {
     setError('');
+    const efectivoInsuficiente = pagos.find(
+      (p) => p.medioPago === 'EFECTIVO' && p.recibido !== '' && Number(p.recibido) < cobrarDe(p) - 0.5,
+    );
+    if (efectivoInsuficiente) {
+      return setError('El dinero recibido en efectivo es menor al monto a cobrar.');
+    }
     if (pagos.some((p) => p.borrador !== p.monto)) {
       return setError('Confirma los montos de los pagos (Tab o clic fuera del campo) antes de finalizar.');
     }
@@ -557,6 +568,27 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                           )}
                         </div>
                       )
+                    )}
+
+                    {p.medioPago === 'EFECTIVO' && !sinConfirmar && montoNeto(p) > 0 && (
+                      <div className="mt-2 pt-2 border-t border-ink/10 flex items-center justify-between gap-3">
+                        <div>
+                          <label className="block text-xs text-ink/50 mb-1">Dinero recibido</label>
+                          <input
+                            type="number"
+                            className="border border-ink/15 rounded px-2 py-1.5 text-sm w-32"
+                            placeholder="0"
+                            value={p.recibido}
+                            onChange={(e) => cambiarRecibido(idx, e.target.value)}
+                          />
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-ink/50">Vuelto a entregar</p>
+                          <p className="text-xl font-bold font-mono text-teal">
+                            {pesos(Math.max(0, (Number(p.recibido) || 0) - cobrarDe(p)))}
+                          </p>
+                        </div>
+                      </div>
                     )}
                   </div>
                 );

@@ -13,6 +13,7 @@ import Ventas from './pages/Ventas';
 import ClienteDetalle from './pages/ClienteDetalle';
 import Informes from './pages/Informes';
 import Despacho from './pages/Despacho';
+import Caja from './pages/Caja';
 
 function App() {
   return (
@@ -53,6 +54,14 @@ function App() {
               element={
                 <RutaProtegida rolesPermitidos={['ADMIN_MASTER', 'ADMIN', 'DESPACHO']}>
                   <Despacho />
+                </RutaProtegida>
+              }
+            />
+            <Route
+              path="/caja"
+              element={
+                <RutaProtegida rolesPermitidos={['ADMIN_MASTER', 'ADMIN']}>
+                  <Caja />
                 </RutaProtegida>
               }
             />

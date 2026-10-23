@@ -100,6 +100,8 @@ model Usuario {
 
   ventas    Venta[]
   despachos Despacho[]
+  salidasCaja SalidaCaja[]
+  cuadresCaja CuadreCaja[]
 }
 
 enum MedioPago {
@@ -195,4 +197,36 @@ model Abono {
 enum TipoDocumento {
   FACTURA
   NOTA_VENTA
+}
+
+model SalidaCaja {
+  id          Int      @id @default(autoincrement())
+  fecha       DateTime @db.Date
+  concepto    String
+  responsable String
+  monto       Float
+  usuarioId   Int?
+  creadoEn    DateTime @default(now())
+
+  usuario     Usuario? @relation(fields: [usuarioId], references: [id])
+}
+
+enum TipoCuadre {
+  EFECTIVO
+  BANCO
+}
+
+model CuadreCaja {
+  id            Int        @id @default(autoincrement())
+  fecha         DateTime   @db.Date
+  tipo          TipoCuadre
+  contado       Float      // lo que se contó (efectivo) o el saldo del banco
+  sistema       Float      // lo que dice el sistema
+  diferencia    Float      // contado - sistema
+  observaciones String?
+  detalle       Json?      // billetes y monedas contados (solo efectivo)
+  usuarioId     Int?
+  creadoEn      DateTime   @default(now())
+
+  usuario       Usuario?   @relation(fields: [usuarioId], references: [id])
 }
