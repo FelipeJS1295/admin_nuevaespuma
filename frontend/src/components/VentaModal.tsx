@@ -5,7 +5,7 @@ import type { Producto } from '../types/producto';
 import type { Cliente } from '../types/cliente';
 import type { MedioPago } from '../types/venta';
 import Modal from './Modal';
-import { Plus, Trash2, Search } from 'lucide-react';
+import { Plus, Trash2, Search, Banknote, Landmark, CreditCard, Shuffle, Clock } from 'lucide-react';
 
 interface ItemCarrito {
   productoId: number;
@@ -21,7 +21,6 @@ interface PagoForm {
   monto: string; // monto neto ya confirmado: es el que usan todos los cálculos
   borrador: string; // lo que se está escribiendo; pasa a "monto" al salir del campo
   conIva: boolean;
-  recibido: string; // dinero recibido en efectivo (solo para calcular el vuelto)
 }
 
 interface EstadoCredito {
@@ -34,14 +33,15 @@ interface EstadoCredito {
   proximoVencimiento: string | null;
 }
 
-const pagoVacio = (): PagoForm => ({ medioPago: 'EFECTIVO', monto: '', borrador: '', conIva: false, recibido: '' });
+type Metodo = 'EFECTIVO' | 'TRANSFERENCIA' | 'DEBITO' | 'MIXTO' | 'PENDIENTE';
 
-const etiquetasMedioPago: Record<MedioPago, string> = {
-  EFECTIVO: 'Efectivo',
-  DEBITO: 'Débito',
-  TRANSFERENCIA: 'Transferencia',
-  CREDITO_CLIENTE: 'Crédito del cliente',
-};
+const metodos: { id: Metodo; etiqueta: string; Icono: typeof Banknote }[] = [
+  { id: 'EFECTIVO', etiqueta: 'Efectivo', Icono: Banknote },
+  { id: 'TRANSFERENCIA', etiqueta: 'Transferencia', Icono: Landmark },
+  { id: 'DEBITO', etiqueta: 'Débito', Icono: CreditCard },
+  { id: 'MIXTO', etiqueta: 'Mixto', Icono: Shuffle },
+  { id: 'PENDIENTE', etiqueta: 'Pendiente', Icono: Clock },
+];
 
 const TASA_IVA = 0.19;
 
@@ -85,7 +85,10 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   const [numeroDocumento, setNumeroDocumento] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
-  const [pagos, setPagos] = useState<PagoForm[]>([pagoVacio()]);
+  const [metodo, setMetodo] = useState<Metodo>('EFECTIVO');
+  const [efectivoMixto, setEfectivoMixto] = useState('');
+  const [restoMixto, setRestoMixto] = useState<'TRANSFERENCIA' | 'DEBITO'>('TRANSFERENCIA');
+  const [recibido, setRecibido] = useState('');
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
 
@@ -150,6 +153,36 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   const montoNeto = (p: PagoForm) => Number(p.monto) || 0;
   const ivaDe = (p: PagoForm) => (conIvaEn(p) ? Math.round(montoNeto(p) * TASA_IVA) : 0);
   const cobrarDe = (p: PagoForm) => montoNeto(p) + ivaDe(p);
+
+  // El método elegido se traduce a los pagos que recibe el sistema (misma lógica de la venta del sistema anterior):
+  // efectivo sin IVA; transferencia y débito con IVA; mixto = efectivo sin IVA + resto con IVA; pendiente = sin pagos
+  const efectivoMixtoNum = Math.min(Math.max(Number(efectivoMixto) || 0, 0), subtotal);
+  const pagos: PagoForm[] = (() => {
+    const crear = (medioPago: MedioPago, monto: number, conIva: boolean): PagoForm => ({
+      medioPago,
+      monto: String(monto),
+      borrador: String(monto),
+      conIva,
+    });
+    if (subtotal <= 0) return [];
+    switch (metodo) {
+      case 'EFECTIVO':
+        return [crear('EFECTIVO', subtotal, false)];
+      case 'TRANSFERENCIA':
+        return [crear('TRANSFERENCIA', subtotal, true)];
+      case 'DEBITO':
+        return [crear('DEBITO', subtotal, true)];
+      case 'MIXTO': {
+        const lista: PagoForm[] = [];
+        if (efectivoMixtoNum > 0) lista.push(crear('EFECTIVO', efectivoMixtoNum, false));
+        if (subtotal - efectivoMixtoNum > 0) lista.push(crear(restoMixto, subtotal - efectivoMixtoNum, true));
+        return lista;
+      }
+      default:
+        return [];
+    }
+  })();
+  const vuelto = Math.max(0, (Number(recibido) || 0) - (subtotal + pagos.reduce((a, p) => a + ivaDe(p), 0)));
 
   // Todos los cálculos usan solo los montos ya confirmados (no lo que se está escribiendo)
   const sumaMontosNetos = pagos.reduce((acc, p) => acc + montoNeto(p), 0);
@@ -219,32 +252,6 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
     setCarrito(carrito.filter((i) => i.productoId !== productoId));
   };
 
-  const agregarPago = () => {
-    setPagos((prev) => [...prev, pagoVacio()]);
-  };
-
-  const cambiarMedioPago = (index: number, medioPago: MedioPago) => {
-    setPagos((prev) => prev.map((p, i) => (i === index ? { ...p, medioPago } : p)));
-  };
-
-  const cambiarIva = (index: number, conIva: boolean) => {
-    setPagos((prev) => prev.map((p, i) => (i === index ? { ...p, conIva } : p)));
-  };
-
-  // Mientras se escribe, solo cambia el borrador: no se recalcula nada
-  const escribirMonto = (index: number, borrador: string) => {
-    setPagos((prev) => prev.map((p, i) => (i === index ? { ...p, borrador } : p)));
-  };
-
-  // Al salir del campo (Tab, clic fuera o Enter) el borrador pasa a ser el monto y se calcula
-  const confirmarMonto = (index: number) => {
-    setPagos((prev) => prev.map((p, i) => (i === index ? { ...p, monto: p.borrador } : p)));
-  };
-
-  const quitarPago = (index: number) => {
-    setPagos((prev) => prev.filter((_, i) => i !== index));
-  };
-
   const limpiarYcerrar = () => {
     setTipoDocumento('');
     setNumeroDocumento('');
@@ -256,25 +263,23 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
     setBuscadorClienteAbierto(false);
     setBusqueda('');
     setCarrito([]);
-    setPagos([pagoVacio()]);
+    setMetodo('EFECTIVO');
+    setEfectivoMixto('');
+    setRestoMixto('TRANSFERENCIA');
+    setRecibido('');
     setError('');
     onCerrar();
   };
 
-  const cambiarRecibido = (index: number, recibido: string) => {
-    setPagos((prev) => prev.map((p, i) => (i === index ? { ...p, recibido } : p)));
-  };
-
   const finalizarVenta = async () => {
     setError('');
-    const efectivoInsuficiente = pagos.find(
-      (p) => p.medioPago === 'EFECTIVO' && p.recibido !== '' && Number(p.recibido) < cobrarDe(p) - 0.5,
-    );
-    if (efectivoInsuficiente) {
-      return setError('El dinero recibido en efectivo es menor al monto a cobrar.');
+    if (metodo === 'EFECTIVO' && carrito.length > 0) {
+      if ((Number(recibido) || 0) < totalConIva - 0.5) {
+        return setError('El dinero recibido debe ser igual o mayor al total de la venta.');
+      }
     }
-    if (pagos.some((p) => p.borrador !== p.monto)) {
-      return setError('Confirma los montos de los pagos (Tab o clic fuera del campo) antes de finalizar.');
+    if (metodo === 'MIXTO' && (Number(efectivoMixto) || 0) > subtotal + 0.5) {
+      return setError('El monto en efectivo no puede ser mayor al total.');
     }
     if (!bodegaId) return setError('Selecciona una bodega.');
     if (carrito.length === 0) return setError('Agrega al menos un producto al carrito.');
@@ -495,111 +500,93 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
               />
             </div>
 
-            <h3 className="text-sm font-medium text-ink/70 mb-2">Pagos</h3>
+            <h3 className="text-sm font-medium text-ink/70 mb-2">Método de pago</h3>
             {clienteConFactura && (
               <p className="text-xs text-amber-dark mb-2">Cliente con factura: todos los pagos llevan IVA.</p>
             )}
-            <div className="space-y-2 mb-2">
-              {pagos.map((p, idx) => {
-                const sinConfirmar = p.borrador !== p.monto;
-                return (
-                  <div key={idx} className="border border-ink/10 rounded p-2">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <select
-                        className="border border-ink/15 rounded px-2 py-1.5 text-sm flex-1 min-w-0"
-                        value={p.medioPago}
-                        onChange={(e) => cambiarMedioPago(idx, e.target.value as MedioPago)}
-                      >
-                        {Object.entries(etiquetasMedioPago).map(([valor, etiqueta]) => (
-                          <option key={valor} value={valor}>{etiqueta}</option>
-                        ))}
-                      </select>
-                      <input
-                        type="number"
-                        className="border border-ink/15 rounded px-2 py-1.5 text-sm w-32"
-                        placeholder="Monto neto"
-                        value={p.borrador}
-                        onChange={(e) => escribirMonto(idx, e.target.value)}
-                        onBlur={() => confirmarMonto(idx)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') e.currentTarget.blur();
-                        }}
-                      />
-                      {pagos.length > 1 && (
-                        <button onClick={() => quitarPago(idx)} className="text-danger/70 hover:text-danger">
-                          <Trash2 size={15} />
-                        </button>
-                      )}
-                    </div>
-
-                    <label className="flex items-center gap-1.5 text-xs text-ink/60 cursor-pointer pl-1">
-                      <input
-                        type="checkbox"
-                        checked={conIvaEn(p)}
-                        disabled={clienteConFactura}
-                        onChange={(e) => cambiarIva(idx, e.target.checked)}
-                      />
-                      {clienteConFactura ? 'Incluye IVA (cliente con factura)' : 'Incluye IVA (19%)'}
-                    </label>
-
-                    {sinConfirmar ? (
-                      <p className="mt-2 text-xs text-ink/40 pl-1">
-                        Presiona Tab o haz clic fuera del campo para calcular.
-                      </p>
-                    ) : (
-                      montoNeto(p) > 0 && (
-                        <div className="mt-2 pt-2 border-t border-ink/10 flex items-end justify-between">
-                          {conIvaEn(p) ? (
-                            <>
-                              <div>
-                                <p className="text-xs text-ink/50">IVA (19%)</p>
-                                <p className="text-lg font-bold font-mono text-amber-dark">{pesos(ivaDe(p))}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-xs text-ink/50">Cobrar con IVA</p>
-                                <p className="text-xl font-bold font-mono text-ink">{pesos(cobrarDe(p))}</p>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <p className="text-xs text-ink/50">Cobrar (sin IVA)</p>
-                              <p className="text-lg font-bold font-mono text-ink">{pesos(cobrarDe(p))}</p>
-                            </>
-                          )}
-                        </div>
-                      )
-                    )}
-
-                    {p.medioPago === 'EFECTIVO' && !sinConfirmar && montoNeto(p) > 0 && (
-                      <div className="mt-2 pt-2 border-t border-ink/10 flex items-center justify-between gap-3">
-                        <div>
-                          <label className="block text-xs text-ink/50 mb-1">Dinero recibido</label>
-                          <input
-                            type="number"
-                            className="border border-ink/15 rounded px-2 py-1.5 text-sm w-32"
-                            placeholder="0"
-                            value={p.recibido}
-                            onChange={(e) => cambiarRecibido(idx, e.target.value)}
-                          />
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-ink/50">Vuelto a entregar</p>
-                          <p className="text-xl font-bold font-mono text-teal">
-                            {pesos(Math.max(0, (Number(p.recibido) || 0) - cobrarDe(p)))}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="grid grid-cols-5 gap-1.5 mb-3">
+              {metodos.map(({ id, etiqueta, Icono }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setMetodo(id)}
+                  className={`flex flex-col items-center gap-1 border rounded p-2 text-xs transition ${
+                    metodo === id
+                      ? 'bg-amber/15 border-amber text-ink font-medium'
+                      : 'border-ink/15 text-ink/60 hover:bg-ink/5'
+                  }`}
+                >
+                  <Icono size={18} />
+                  {etiqueta}
+                </button>
+              ))}
             </div>
-            <button
-              onClick={agregarPago}
-              className="text-sm text-amber-dark hover:underline self-start mb-4"
-            >
-              + Agregar otro medio de pago
-            </button>
+
+            {metodo === 'EFECTIVO' && (
+              <div className="bg-ink/[0.03] rounded p-3 mb-3 space-y-2">
+                <p className="text-xs text-ink/50">
+                  {clienteConFactura ? 'Efectivo con IVA (cliente con factura).' : 'Efectivo: sin IVA.'}
+                </p>
+                <div>
+                  <label className="block text-xs text-ink/60 mb-1">Dinero recibido</label>
+                  <input
+                    type="number"
+                    className="border border-ink/15 rounded px-3 py-2 w-full"
+                    placeholder="0"
+                    value={recibido}
+                    onChange={(e) => setRecibido(e.target.value)}
+                  />
+                </div>
+                <div className="flex justify-between items-center bg-white border border-ink/10 rounded p-2.5">
+                  <span className="text-sm text-ink/70 font-medium">Vuelto a entregar</span>
+                  <span className="text-xl font-bold font-mono text-teal">{pesos(vuelto)}</span>
+                </div>
+              </div>
+            )}
+
+            {(metodo === 'TRANSFERENCIA' || metodo === 'DEBITO') && (
+              <p className="text-xs text-ink/50 bg-ink/[0.03] rounded p-3 mb-3">
+                {metodo === 'TRANSFERENCIA' ? 'Transferencia' : 'Débito'}: se cobra con IVA (19%).
+              </p>
+            )}
+
+            {metodo === 'MIXTO' && (
+              <div className="bg-ink/[0.03] rounded p-3 mb-3 space-y-2">
+                <div>
+                  <label className="block text-xs text-ink/60 mb-1">Monto en efectivo (sin IVA)</label>
+                  <input
+                    type="number"
+                    className="border border-ink/15 rounded px-3 py-2 w-full"
+                    placeholder="0"
+                    value={efectivoMixto}
+                    onChange={(e) => setEfectivoMixto(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-ink/60 mb-1">Método para el monto restante (con IVA)</label>
+                  <select
+                    className="border border-ink/15 rounded px-3 py-2 w-full"
+                    value={restoMixto}
+                    onChange={(e) => setRestoMixto(e.target.value as 'TRANSFERENCIA' | 'DEBITO')}
+                  >
+                    <option value="TRANSFERENCIA">Transferencia</option>
+                    <option value="DEBITO">Débito</option>
+                  </select>
+                </div>
+                <div className="bg-white border border-ink/10 rounded p-2.5 text-sm space-y-0.5">
+                  <p>Efectivo (sin IVA): <span className="font-mono">{pesos(efectivoMixtoNum)}</span></p>
+                  <p>Restante: <span className="font-mono">{pesos(subtotal - efectivoMixtoNum)}</span></p>
+                  <p>IVA (19% del restante): <span className="font-mono">{pesos(ivaTotal)}</span></p>
+                  <p>Total restante con IVA: <span className="font-mono">{pesos(subtotal - efectivoMixtoNum + ivaTotal)}</span></p>
+                </div>
+              </div>
+            )}
+
+            {metodo === 'PENDIENTE' && (
+              <p className="text-xs text-ink/50 bg-ink/[0.03] rounded p-3 mb-3">
+                Pendiente: queda todo como saldo por cobrar del cliente (requiere elegir cliente).
+              </p>
+            )}
 
             {montoQueAfectaCredito > 0 && clienteSeleccionado && (
               <div className="border border-ink/10 rounded p-3 mb-3">
