@@ -179,7 +179,12 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
 
   // El método elegido se traduce a los pagos que recibe el sistema (misma lógica de la venta del sistema anterior):
   // efectivo sin IVA; transferencia y débito con IVA; mixto = efectivo sin IVA + resto con IVA; pendiente = sin pagos
-  const efectivoMixtoNum = Math.min(Math.max(Number(efectivoMixto) || 0, 0), subtotal);
+  // En el pago mixto, el monto del primer pago es lo que se cobra (si lleva IVA, ya lo incluye).
+  // Acá se convierte a neto: el segundo pago cubre lo que falta del total con IVA.
+  const ivaPrimero = clienteConFactura || datosMixto(primeroMixto).conIva;
+  const brutoPrimero = Math.max(Number(efectivoMixto) || 0, 0);
+  const maxBrutoPrimero = ivaPrimero ? subtotal * (1 + TASA_IVA) : subtotal;
+  const efectivoMixtoNum = Math.min(ivaPrimero ? Math.round(brutoPrimero / (1 + TASA_IVA)) : brutoPrimero, subtotal);
   const pagos: PagoForm[] = (() => {
     const crear = (medioPago: MedioPago, monto: number, conIva: boolean): PagoForm => ({
       medioPago,
@@ -307,7 +312,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
         return setError('El dinero recibido debe ser igual o mayor al total de la venta.');
       }
     }
-    if (metodo === 'MIXTO' && (Number(efectivoMixto) || 0) > subtotal + 0.5) {
+    if (metodo === 'MIXTO' && brutoPrimero > maxBrutoPrimero + 1) {
       return setError('El monto del primer pago no puede ser mayor al total.');
     }
     if (!bodegaId) return setError('Selecciona una bodega.');
@@ -645,7 +650,9 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-ink/60 mb-1">Monto del primer pago (neto)</label>
+                  <label className="block text-xs text-ink/60 mb-1">
+                    Monto del primer pago {ivaPrimero ? '(ya incluye el IVA)' : '(sin IVA)'}
+                  </label>
                   <input
                     type="number"
                     className="border border-ink/15 rounded px-3 py-2 w-full"
@@ -680,20 +687,23 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                         <div>
                           <p className="text-xs text-ink/50">{linea.titulo} · {etiquetasMixto[linea.tipo]}</p>
                           <p className="font-mono text-ink/70">
-                            Neto {pesos(linea.neto)}
-                            {conIva && <span className="text-amber-dark"> + IVA {pesos(iva)}</span>}
+                            {conIva ? (
+                              <span className="text-amber-dark">Incluye IVA {pesos(iva)}</span>
+                            ) : (
+                              'Sin IVA'
+                            )}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs text-ink/50">Cobrar{conIva ? ' con IVA' : ''}</p>
-                          <p className="text-lg font-bold font-mono">{pesos(linea.neto + iva)}</p>
+                          <p className="text-xs text-ink/50">Cobrar{conIva ? ' (con IVA)' : ''}</p>
+                          <p className="text-lg font-bold font-mono">{pesos(Math.round(linea.neto + iva))}</p>
                         </div>
                       </div>
                     );
                   })}
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-sm font-medium">Total a cobrar</span>
-                    <span className="text-xl font-bold font-mono">{pesos(totalConIva)}</span>
+                    <span className="text-xl font-bold font-mono">{pesos(Math.round(totalConIva))}</span>
                   </div>
                 </div>
               </div>
