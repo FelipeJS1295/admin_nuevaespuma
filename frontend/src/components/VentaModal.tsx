@@ -106,6 +106,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   const [numeroDocumento, setNumeroDocumento] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
+  const [verConIva, setVerConIva] = useState(false);
   const [metodo, setMetodo] = useState<Metodo>('EFECTIVO');
   const [primeroMixto, setPrimeroMixto] = useState<MetodoMixto>('EFECTIVO');
   const [efectivoMixto, setEfectivoMixto] = useState('');
@@ -289,6 +290,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
     setBuscadorClienteAbierto(false);
     setBusqueda('');
     setCarrito([]);
+    setVerConIva(false);
     setMetodo('EFECTIVO');
     setEfectivoMixto('');
     setRestoMixto('TRANSFERENCIA');
@@ -408,7 +410,13 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
 
           {/* Columna derecha: carrito + pagos */}
           <div className="p-5 flex flex-col">
-            <h3 className="text-sm font-medium text-ink/70 mb-2">Detalle de la venta</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-ink/70">Detalle de la venta</h3>
+              <label className="flex items-center gap-1.5 text-xs text-ink/60 cursor-pointer select-none">
+                <input type="checkbox" checked={verConIva} onChange={(e) => setVerConIva(e.target.checked)} />
+                Ver total con IVA por densidad
+              </label>
+            </div>
             <div className="flex-1 space-y-2 mb-4 max-h-64 overflow-y-auto pr-1">
               {carrito.length === 0 && (
                 <p className="text-sm text-ink/40 py-6 text-center">Agrega productos desde la izquierda</p>
@@ -444,6 +452,25 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                       ${(i.precioPorCm * i.espesorCm * i.cantidad).toLocaleString('es-CL')}
                     </span>
                   </div>
+                  {verConIva && (
+                    <div className="mt-2 pt-2 border-t border-ink/10 flex items-end justify-between">
+                      <p className="text-xs text-ink/50">
+                        IVA (19%){' '}
+                        <span className="font-mono text-amber-dark">
+                          {pesos(Math.round(i.precioPorCm * i.espesorCm * i.cantidad * TASA_IVA))}
+                        </span>
+                      </p>
+                      <div className="text-right">
+                        <p className="text-xs text-ink/50">Total con IVA</p>
+                        <p className="text-lg font-bold font-mono">
+                          {pesos(
+                            i.precioPorCm * i.espesorCm * i.cantidad +
+                              Math.round(i.precioPorCm * i.espesorCm * i.cantidad * TASA_IVA),
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
