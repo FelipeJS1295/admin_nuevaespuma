@@ -86,22 +86,16 @@ export function ticketCliente(venta: Venta, extra?: { recibido: number; vuelto: 
   return t.join('\n');
 }
 
-// Ticket para despacho: sin ningún monto
+// Ticket para despacho: sin ningún monto, solo densidad, centímetros y unidades
 export function ticketDespacho(venta: Venta): string {
   const t = cabecera(venta, 'COPIA DESPACHO');
-  let totalCm = 0;
 
   for (const item of venta.items) {
-    t.push(...envolver(item.producto.nombre));
-    t.push(`Densidad: D${item.producto.densidad}`);
+    t.push(`Densidad: ${item.producto.densidad}`);
     t.push(`${cm(item.espesorCm)} cm x ${item.cantidad} un.`);
-    t.push(linea('Total:', `${cm(item.espesorCm * item.cantidad)} cm`));
     t.push(separador('-'));
-    totalCm += item.espesorCm * item.cantidad;
   }
 
-  t.push(linea('TOTAL CM:', `${cm(totalCm)} cm`));
-  t.push(separador('='));
   t.push('');
   t.push('Entregado por: ____________');
   t.push('');
@@ -111,8 +105,18 @@ export function ticketDespacho(venta: Venta): string {
 
 const escapar = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-// Manda a imprimir los tickets (cada uno en su propia página de 58 mm) sin abrir ventanas nuevas
-export function imprimirTickets(tickets: string[]) {
+// Alto de cada línea del ticket y márgenes, en milímetros (para que el papel se corte justo al terminar el texto)
+const ALTO_LINEA_MM = 4;
+const MARGEN_SUPERIOR_MM = 1;
+const MARGEN_INFERIOR_MM = 5;
+
+const esperar = (ms: number) => new Promise((resolver) => setTimeout(resolver, ms));
+
+// Imprime un ticket en su propia hoja de 58 mm, con el alto exacto de su contenido (sin abrir ventanas nuevas)
+async function imprimirUno(texto: string) {
+  const lineas = texto.split('\n').length;
+  const altoMm = Math.ceil(lineas * ALTO_LINEA_MM + MARGEN_SUPERIOR_MM + MARGEN_INFERIOR_MM);
+
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
   iframe.style.right = '0';
@@ -124,20 +128,25 @@ export function imprimirTickets(tickets: string[]) {
 
   const doc = iframe.contentWindow!.document;
   doc.open();
-  doc.write(`<!doctype html><html><head><meta charset="utf-8"><style>
-    @page { margin: 0; size: 58mm auto; }
-    body { margin: 0; padding: 1mm; width: 58mm; font-family: monospace; font-size: 9pt; }
-    pre { margin: 0; white-space: pre-wrap; padding-bottom: 12mm; }
-    .ticket { page-break-after: always; }
-    .ticket:last-child { page-break-after: auto; }
-  </style></head><body>
-    ${tickets.map((t) => `<div class="ticket"><pre>${escapar(t)}</pre></div>`).join('')}
-  </body></html>`);
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title> </title><style>
+    @page { margin: 0; size: 58mm ${altoMm}mm; }
+    html, body { margin: 0; padding: 0; }
+    body { width: 58mm; height: ${altoMm}mm; overflow: hidden; padding: ${MARGEN_SUPERIOR_MM}mm 1mm 0 1mm; box-sizing: border-box;
+           font-family: monospace; font-size: 9pt; line-height: ${ALTO_LINEA_MM}mm; }
+    pre { margin: 0; font: inherit; line-height: inherit; white-space: pre-wrap; }
+  </style></head><body><pre>${escapar(texto)}</pre></body></html>`);
   doc.close();
 
-  setTimeout(() => {
-    iframe.contentWindow!.focus();
-    iframe.contentWindow!.print();
-    setTimeout(() => iframe.remove(), 60000);
-  }, 300);
+  await esperar(300);
+  iframe.contentWindow!.focus();
+  iframe.contentWindow!.print();
+  await esperar(1500);
+  iframe.remove();
+}
+
+// Manda a imprimir los tickets, uno tras otro, cada uno como un trabajo de impresión separado
+export async function imprimirTickets(tickets: string[]) {
+  for (const t of tickets) {
+    await imprimirUno(t);
+  }
 }
