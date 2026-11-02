@@ -3,9 +3,10 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import type { Venta } from '../types/venta';
 import VentaModal from '../components/VentaModal';
+import { imprimirTickets, ticketCliente, ticketDespacho } from '../utils/tickets';
 import PagarSaldoModal from '../components/PagarSaldoModal';
 import RegistrarDocumentoModal from '../components/RegistrarDocumentoModal';
-import { Layers, Plus, ChevronDown, ChevronUp, AlertTriangle, CircleDollarSign, Search, X, Trash2 } from 'lucide-react';
+import { Layers, Plus, ChevronDown, ChevronUp, AlertTriangle, CircleDollarSign, Search, X, Trash2, Printer } from 'lucide-react';
 
 const etiquetasMedioPago: Record<string, string> = {
   EFECTIVO: 'Efectivo',
@@ -414,6 +415,13 @@ export default function Ventas() {
                             <CircleDollarSign size={16} />
                           </button>
                         )}
+                        <button
+                          onClick={() => imprimirTickets([ticketCliente(v), ticketDespacho(v)])}
+                          className="p-1.5 text-ink/50 hover:text-ink hover:bg-ink/5 rounded"
+                          title="Reimprimir (comprobante del cliente y copia de despacho)"
+                        >
+                          <Printer size={16} />
+                        </button>
                         {puedeEliminar && (
                           <button
                             onClick={() => eliminarVenta(v)}
@@ -432,6 +440,22 @@ export default function Ventas() {
                   {ventaExpandida === v.id && (
                     <tr className="bg-ink/[0.015]">
                       <td colSpan={8} className="px-4 pb-4 pt-1">
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          <button
+                            onClick={() => imprimirTickets([ticketCliente(v)])}
+                            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border border-ink/15 text-ink/70 hover:bg-ink/5"
+                          >
+                            <Printer size={14} />
+                            Imprimir comprobante (con montos)
+                          </button>
+                          <button
+                            onClick={() => imprimirTickets([ticketDespacho(v)])}
+                            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border border-ink/15 text-ink/70 hover:bg-ink/5"
+                          >
+                            <Printer size={14} />
+                            Imprimir copia de despacho (sin montos)
+                          </button>
+                        </div>
                         <div className="grid grid-cols-2 gap-6">
                           <div>
                             <p className="text-xs font-medium text-ink/50 mb-1.5">Productos</p>
