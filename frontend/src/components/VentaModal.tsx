@@ -9,6 +9,7 @@ import Modal from './Modal';
 import { Plus, Trash2, Search, Banknote, Landmark, CreditCard, Shuffle, Clock } from 'lucide-react';
 
 interface ItemCarrito {
+  uid: number;
   productoId: number;
   nombre: string;
   densidad: number;
@@ -264,24 +265,22 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
   };
 
   const agregarProducto = (producto: Producto) => {
-    const yaExiste = carrito.find((i) => i.productoId === producto.id);
-    if (yaExiste) return;
     setCarrito([
       ...carrito,
-      { productoId: producto.id, nombre: producto.nombre, densidad: producto.densidad, precioPorCm: producto.precio, espesorCm: 1, cantidad: 1 },
+      { uid: Date.now() + Math.random(), productoId: producto.id, nombre: producto.nombre, densidad: producto.densidad, precioPorCm: producto.precio, espesorCm: 1, cantidad: 1 },
     ]);
   };
 
-  const actualizarEspesor = (productoId: number, espesorCm: number) => {
-    setCarrito(carrito.map((i) => (i.productoId === productoId ? { ...i, espesorCm } : i)));
+  const actualizarEspesor = (uid: number, espesorCm: number) => {
+    setCarrito(carrito.map((i) => (i.uid === uid ? { ...i, espesorCm } : i)));
   };
 
-  const actualizarCantidad = (productoId: number, cantidad: number) => {
-    setCarrito(carrito.map((i) => (i.productoId === productoId ? { ...i, cantidad } : i)));
+  const actualizarCantidad = (uid: number, cantidad: number) => {
+    setCarrito(carrito.map((i) => (i.uid === uid ? { ...i, cantidad } : i)));
   };
 
-  const quitarDelCarrito = (productoId: number) => {
-    setCarrito(carrito.filter((i) => i.productoId !== productoId));
+  const quitarDelCarrito = (uid: number) => {
+    setCarrito(carrito.filter((i) => i.uid !== uid));
   };
 
   const limpiarYcerrar = () => {
@@ -427,10 +426,10 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                 <p className="text-sm text-ink/40 py-6 text-center">Agrega productos desde la izquierda</p>
               )}
               {carrito.map((i) => (
-                <div key={i.productoId} className="border border-ink/10 rounded p-3">
+                <div key={i.uid} className="border border-ink/10 rounded p-3">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-sm font-medium">{i.nombre}</p>
-                    <button onClick={() => quitarDelCarrito(i.productoId)} className="text-danger/70 hover:text-danger">
+                    <button onClick={() => quitarDelCarrito(i.uid)} className="text-danger/70 hover:text-danger">
                       <Trash2 size={15} />
                     </button>
                   </div>
@@ -439,7 +438,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                       type="number"
                       className="border border-ink/15 rounded px-2 py-1 w-24 text-sm"
                       value={i.espesorCm}
-                      onChange={(e) => actualizarEspesor(i.productoId, Number(e.target.value))}
+                      onChange={(e) => actualizarEspesor(i.uid, Number(e.target.value))}
                       min={0.1}
                       step={0.1}
                     />
@@ -448,7 +447,7 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                       type="number"
                       className="border border-ink/15 rounded px-2 py-1 w-20 text-sm"
                       value={i.cantidad}
-                      onChange={(e) => actualizarCantidad(i.productoId, Math.max(1, Math.floor(Number(e.target.value)) || 1))}
+                      onChange={(e) => actualizarCantidad(i.uid, Math.max(1, Math.floor(Number(e.target.value)) || 1))}
                       min={1}
                       step={1}
                     />
