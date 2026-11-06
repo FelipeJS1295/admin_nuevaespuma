@@ -755,16 +755,6 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
                 <span className="text-sm font-medium">Total a cobrar</span>
                 <span className="font-mono text-xl font-bold">{pesos(totalConIva)}</span>
               </div>
-              <div
-                className={`flex justify-between text-sm font-medium pt-1 ${
-                  restante > 0.5 ? 'text-amber-dark' : restante < -0.5 ? 'text-danger' : 'text-teal'
-                }`}
-              >
-                <span>
-                  {restante > 0.5 ? 'Quedará pendiente (neto)' : restante < -0.5 ? 'Sobra (no permitido)' : 'Cubierto (neto)'}
-                </span>
-                <span className="font-mono">{pesos(Math.abs(restante))}</span>
-              </div>
             </div>
 
             {bloqueadoPorVencida && clienteSeleccionado && estadoCredito && (
