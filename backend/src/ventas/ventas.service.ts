@@ -73,7 +73,9 @@ export class VentasService {
       };
     });
 
-    const ivaTotal = pagosCalculados.reduce((acc, p) => acc + p.iva, 0);
+    // Cliente con factura: lo que queda pendiente también lleva IVA (se cuenta ahora, no al pagarlo)
+    const ivaPendiente = cliente?.conFactura ? Math.round(saldoPendiente * TASA_IVA) : 0;
+    const ivaTotal = pagosCalculados.reduce((acc, p) => acc + p.iva, 0) + ivaPendiente;
     const total = subtotal + ivaTotal;
 
     // 5. El saldo pendiente y los pagos "Crédito del cliente" requieren cliente, y se suman al crédito usado
@@ -295,7 +297,11 @@ export class VentasService {
 
       await tx.venta.update({
         where: { id: ventaId },
-        data: { saldoPendiente: { decrement: monto }, total: { increment: total } },
+        // Cliente con factura: el IVA de lo pendiente ya se contó al crear la venta
+        data: {
+          saldoPendiente: { decrement: monto },
+          total: { increment: venta.cliente?.conFactura ? 0 : total },
+        },
       });
 
       if (venta.clienteId) {

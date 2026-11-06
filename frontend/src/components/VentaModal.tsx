@@ -219,9 +219,11 @@ export default function VentaModal({ abierto, onCerrar, onVentaCreada }: Props) 
 
   // Todos los cálculos usan solo los montos ya confirmados (no lo que se está escribiendo)
   const sumaMontosNetos = pagos.reduce((acc, p) => acc + montoNeto(p), 0);
-  const ivaTotal = pagos.reduce((acc, p) => acc + ivaDe(p), 0);
-  const totalConIva = subtotal + ivaTotal;
   const restante = subtotal - sumaMontosNetos;
+  // Cliente con factura: lo que queda pendiente también lleva IVA
+  const ivaPendiente = clienteConFactura && restante > 0.5 ? Math.round(restante * TASA_IVA) : 0;
+  const ivaTotal = pagos.reduce((acc, p) => acc + ivaDe(p), 0) + ivaPendiente;
+  const totalConIva = subtotal + ivaTotal;
 
   // Lo que esta venta le sumaría a la deuda: pagos con crédito (con IVA) + lo que quede pendiente
   const montoQueAfectaCredito =
